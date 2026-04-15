@@ -1,0 +1,12 @@
+Instruction:[bit-value] and purpose
+
+HALT :[0x00] --> halt at address
+STDR1:[0x01] --> store data in R1
+STDR2:[0x02] --> store data in R1
+ADDR1:[0x03] --> Add R1 data to accumulator
+ADDR2:[0x04] --> Add R2 data to accumulator
+ADAR1:[0x05] --> Add address data present in R1
+ADAR2:[0x06] --> Add address data present in R2
+JUMPA:[0x07] --> Jump at address
+CLRA :[0x08] --> Clear accumulator data
+
