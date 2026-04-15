@@ -9,4 +9,5 @@ ADAR1:[0x05] --> Add address data present in R1
 ADAR2:[0x06] --> Add address data present in R2
 JUMPA:[0x07] --> Jump at address
 CLRA :[0x08] --> Clear accumulator data
+RET  :[0x09] --> Returning of function
 

@@ -16,7 +16,7 @@ class CPU{
         uint8_t PC = 0x00;
         uint16_t IR = 0x00;
 
-        map<string, int> instructionMap;
+        map<string, uint16_t> instructionMap;
         enum FLAG{
             ZERO,
             NEGATIVE,
@@ -58,71 +58,52 @@ class CPU{
 
             string line;
             string program = "";
-            uint8_t lineNumber =0;
+            uint8_t lineNumber = 0;
             while(getline(file, line)){
                 if(line.empty()){
                     continue;
                 }
                 program += line + "\n";
-                int ramValue = parse(line);
-                cout << "Ram Value: " << hex << ramValue << endl;
-                RAM[lineNumber++] = ramValue;
+               
             }
+
+            uint16_t token = parse(program);
 
             file.close();   
 
-            cout << "programLoadded:\n" << program << endl;
+            cout << "ProgramLoadded:\n" << program << endl;
             
         }
 
         uint16_t parse(string &line){
+            // uint16_t* leftTokens;
             string buffer = "";
-            string instruction, data;
-            int c_index = 0;
-            
-            for(char a : line){
-                if(a == ' '){
-                    instruction = buffer;
+            int counter = 0;
+            int mode = 0; //0 instruction mode, 1 data mode
+			for (char token : line){
+				if(token == ' '){
+                    if(mode == 0){
+                        // *(leftTokens + counter) = instructionMap[buffer];
+                        // counter++;
+                        cout << "Buffer: " << buffer << endl;
+                        buffer.clear();
+
+                    }
+                    mode = 1;
+                    continue;
+                }
+
+                if(token == '\n'){
+                    mode = 0;
+                    cout << "Buffer: " << buffer << endl;
                     buffer.clear();
                 }
-
-                string currentChar(1, a);
-                buffer += currentChar;
-
-                if(c_index == line.length() - 1){
-                    if(!instruction.empty()){
-                        data = buffer;
-                    }
-                }
-
-                c_index++;
-            }
-
-            cout << "Instruction: " << instructionMap[instruction] << " | Data: " << data << endl;
-            
-            return 0x01 << 8;
-
-            if(data.empty()){
-                // cout << "Instruction: " << instructionMap[instruction] << endl;
-                return instructionMap[instruction] << 8;
-            }else{
-                // cout << "Instruction: " << instructionMap[instruction] << " | Data: " << stoi(data, nullptr, 16) << endl;
-                return instructionMap[instruction] << 8 + stoi(data, nullptr, 16);
-            }
-        
-            
-
-            // if (index != -1)
-            // {
-            //     string ins = line.substr(0, index);
-            //     string data = line.substr(index+1, line.length());
-            //     return instructionMap[ins] << 2 + stoi(data, nullptr, 16);
-            // }
-            // else{
-            //     
-            // }
+                string s(1, token);
+                buffer += s;
+			}
 
             return 0x00;
+            
         }
 		
 		void tick(){
@@ -181,8 +162,6 @@ class CPU{
     };
 
 int main(){
-    uint16_t prog[] = {
-        0x0001, 0x0101, 0x0001, 0x0001};
 
     CPU cpu;
     cpu.loadProgram();
