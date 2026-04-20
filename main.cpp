@@ -6,11 +6,12 @@
 using namespace std;
 
 
-
 class CPU{
     public:
         uint8_t R1 = 0x00; // First Register
-        uint8_t R2 = 0x00; // Second Register		
+        uint8_t R2 = 0x00; // Second Register
+        uint8_t R3 = 0x00; // Second Register
+        uint8_t R4 = 0x00; // Second Register
         uint8_t AR = 0x00; //Address Register
         uint8_t AC = 0x00; //Accumulator
         uint8_t PC = 0x00;
@@ -37,15 +38,19 @@ class CPU{
         }
 
         void initMap(){
-            instructionMap["HLT"] = 0x00;
-            instructionMap["STDR1"] = 0x01;
-            instructionMap["STDR2"] = 0x02;
-            instructionMap["ADDR1"] = 0x03;
-            instructionMap["ADDR2"] = 0x04;
-            instructionMap["ADAR1"] = 0x05;
-            instructionMap["ADAR2"] = 0x06;
-            instructionMap["JUMPA"] = 0x07;
-            instructionMap["CLRA"] = 0x08;
+            //instructionMap[cmd] =
+            instructionMap["HLT"] = 0b00000000;  // 0x00
+            instructionMap["STR1"] = 0b10000000; // 0x80
+            instructionMap["STR2"] = 0b10000001; // 0x81
+            instructionMap["LDR1"] = 0b01000000; // 0x40
+            instructionMap["LDR2"] = 0b01000001; // 0x41
+            instructionMap["JUMP"] = 0b00100000; // 0x20
+            instructionMap["ADR1"] = 0b00001000; // 0x08
+            instructionMap["ADR2"] = 0b00001001; // 0x09
+            instructionMap["PRNT"] = 0b00000101; // 0x05
+            instructionMap["CLR"] =  0b10100000; //0xA0
+            instructionMap["MOVR"] = 0b11110000; //0xF0
+            instructionMap["RET"] =  0b11100000; //0xE0
         }
 
         void loadProgram(){
@@ -58,79 +63,174 @@ class CPU{
 
             string line;
             string program = "";
-            uint8_t lineNumber = 0;
+            uint8_t lineCount = 0;
             while(getline(file, line)){
                 if(line.empty()){
                     continue;
                 }
                 program += line + "\n";
-               
+                lineCount++;
             }
 
-            uint16_t token = parse(program);
+            cout << "Program :" << endl << program;
+
+            uint16_t* token = parse(program);
+
+            for (uint8_t i = 0; i < lineCount; i++)
+            {
+                RAM[i] = token[i];
+            }
 
             file.close();   
-
-            cout << "ProgramLoadded:\n" << program << endl;
             
         }
 
-        uint16_t parse(string &line){
-            // uint16_t* leftTokens;
+        uint16_t* parse(string &program){
+            uint16_t *binaries = new uint16_t(100);
+            uint16_t binaryIndex = 0;
+
             string buffer = "";
             int counter = 0;
-            int mode = 0; //0 instruction mode, 1 data mode
-			for (char token : line){
-				if(token == ' '){
-                    if(mode == 0){
-                        // *(leftTokens + counter) = instructionMap[buffer];
-                        // counter++;
-                        cout << "Buffer: " << buffer << endl;
-                        buffer.clear();
 
+            string currentInstruction = "";
+            string currentData = "";
+            string currentAddress = "";
+            
+            for (char alphabet : program){
+
+                if (program[counter] == ' ' || program[counter] == '\n')
+                {
+
+                    if (buffer.substr(0, 2) == "0x")
+                    {
+                        currentData = buffer;
                     }
-                    mode = 1;
+                    else if (buffer.substr(0, 1) == "[")
+                    {
+                        int indexOf = buffer.find("]");
+                        if (indexOf == -1){
+                            throw;
+                        }
+                        
+                        currentAddress = buffer.substr(1, indexOf - 1);
+                    }
+                    else
+                    {
+                        currentInstruction = buffer;
+                    }
+                
+                    if(!currentInstruction.empty() && !currentData.empty()){
+                        
+                        *(binaries + binaryIndex) = (instructionMap[currentInstruction] << 8) | (stoi(currentData.substr(2, 4), nullptr, 16));
+                        binaryIndex++;
+                        currentInstruction.clear();
+                        currentData.clear();
+                    }
+                    else if (!currentInstruction.empty() && !currentAddress.empty())
+                    {
+                        
+                        *(binaries + binaryIndex) = ((instructionMap[currentInstruction] | 0x10) << 8) |  stoi(currentAddress.substr(2, 4),nullptr,16);
+                        binaryIndex++;
+                        currentInstruction.clear();
+                        currentAddress.clear();
+                    }
+                    else if (!currentInstruction.empty() && program[counter] == '\n')
+                    {
+                        
+                        *(binaries + binaryIndex) = instructionMap[currentInstruction] << 8;
+                        binaryIndex++;
+                        currentInstruction.clear();
+                        currentAddress.clear();
+                    }
+                    buffer.clear();
+                    counter++;
                     continue;
                 }
 
-                if(token == '\n'){
-                    mode = 0;
-                    cout << "Buffer: " << buffer << endl;
-                    buffer.clear();
-                }
-                string s(1, token);
+                string s(1, alphabet);
                 buffer += s;
+                counter++;
 			}
 
-            return 0x00;
+            return binaries;
             
         }
 		
-		void tick(){
-            if(RAM[PC] & 0xff00)
-			PC++;
+		void run(){
+            while(RAM[PC] & 0xff00){
+                execute();
+                PC++;
+            }
 		}
     
         void execute(){
             IR = RAM[PC];
-            AR = IR >> 8;
-            uint8_t data = IR & 0x00ff;
+            uint16_t instruction = (IR & 0xff00) >> 8;
+            uint16_t data = IR & 0x00ff;
 
-            switch (AR)
-            {
-            case 1: //STR1
+            // cout << "IR:  " << hex << IR << "Instruction:  " << hex << instruction << endl;
+
+            switch (instruction){
+                
+            case 0b10000000: // STR1
                 R1 = data;
                 break;
-            case 2: // STR2
+
+            case 0b10000001: // STR2
                 R2 = data;
                 break;
-            case 3: // LOADR1
-                add(R1);
+
+            case 0b10010000: // STR1 adress
+                R1 = RAM[data];
+                
                 break;
-            case 4: // LOADR2
+            case 0b10010001: // STR2
+                R2 = RAM[data];
+                
+                break;
+
+            case 0b01010000: // LOADR1
+                RAM[data] = (RAM[data] & 0xff00) + R1;
+
+                break;
+            case 0b01010001: // LOADR2
+                RAM[data] = (RAM[data] & 0xff00) + R2;
+                break;
+
+            case 0b00110000: // JUMP
+                PC = data;
+                break;
+
+            case 0b00000101: // PRT
+                cout << data;
+                break;
+
+            case 0b00010101: // PRT Adress
+                cout << hex << (RAM[data] & 0x00ff) << endl;
+                break;
+
+            case 0b00001000: // ADD Adress
+                AC += R1;
+                break;
+
+            case 0b00001001: // ADD Adress
+                AC += R2;
+                break;
+
+            case 0b10100000: // CLR
+                AC = 0;
+                break;
+
+            case 0b10110000: // CLR at address
+                RAM[data] = 0;
+                break;
+
+            case 0b11110000: // Move result of Accumulator
+                RAM[data] = AC;
                 break;
 
             default:
+                cout << " Instruction 0x" << hex << instruction << " Not found";
                 break;
             }
         }
@@ -151,23 +251,22 @@ class CPU{
 
         void showMemory(uint8_t limit=0xFF){
             for (int address = 0; address < limit; ++address){
-                 cout << "[0x" << hex << address << "]: " << bitset<16>() << endl;
+                bitset<16> bin(RAM[address]);
+                cout << "[0x" << hex << address << "]: 0x" << hex << RAM[address] << "\t  [" << bin << "]" <<  endl;
             }
         }
-        
-        void run(){
-        	tick();
-        	execute();
-		}
+
     };
 
 int main(){
 
     CPU cpu;
+    // cpu.toHex("0x56");
     cpu.loadProgram();
-    cpu.showMemory(0x0f);
-
-    // cpu.run();
+    cpu.run();
+    cpu.showMemory();
+	int i;
+   	cin >> i;
     return 0;
 }
 
