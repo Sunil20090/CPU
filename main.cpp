@@ -128,7 +128,6 @@ class CPU{
             uint16_t binaryIndex = 1;
 
             string buffer = "";
-            int counter = 0;
 
             string currentInstruction = "";
             string currentData = "";
@@ -137,21 +136,21 @@ class CPU{
 
             bool functionStarted = false;
 
-            for (char alphabet : program){
+            for (int i=0; i < program.length(); i++){
 
-                if (program[counter] == ' ' || program[counter] == '\n' || program[counter] == ':')
+                if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
                 {
+
                     if(buffer == "END"){
                         functionStarted = false;
+
                         buffer.clear();
                         *(binaries + binaryIndex++) = ((instructionMap["POP"] | 0x10) << 8);
-                        counter++;
                         continue;
                     }
 
                     if(buffer == "CALL"){
                         //finding the function name
-                        uint8_t i = counter;
                         buffer.clear();
                         // string functionBuffer = "";
                         
@@ -171,11 +170,10 @@ class CPU{
                                 buffer += s;
                             }
 
-                            
+
                         }
 
                         buffer.clear();
-                        counter++;
                         continue;
                     }
 
@@ -192,7 +190,7 @@ class CPU{
                         currentAddress = buffer.substr(1, indexOf - 1);
                     }
                    
-                    else if (program[counter] == ':')
+                    else if (program[i] == ':')
                     {
                         currentFunction = buffer;
 
@@ -235,7 +233,7 @@ class CPU{
                         currentInstruction.clear();
                         currentAddress.clear();
                     }
-                    else if (!currentInstruction.empty() && program[counter] == '\n')
+                    else if (!currentInstruction.empty() && program[i] == '\n')
                     {
                         *(binaries + binaryIndex) = instructionMap[currentInstruction] << 8;
                         binaryIndex++;
@@ -244,13 +242,12 @@ class CPU{
                     }
 
                     buffer.clear();
-                    counter++;
+
                     continue;
                 }
 
-                string s(1, alphabet);
+                string s(1, program[i]);
                 buffer += s;
-                counter++;
 			}
 
 
