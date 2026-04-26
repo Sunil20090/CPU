@@ -1,4 +1,17 @@
-main:
+
+
+move:
+PRNT 0x39
+END
+
+create:
+STR2 0x09
+STR1 0x08
+CALL move
+PRNT 0x89
+END
+
+_main:
 STR1 0x08
 STR2 0x09
 CLR
@@ -6,6 +19,8 @@ ADR1
 ADR2
 MOVR [0xF6]
 STR1 [0x79]
-PRNT [0x09]
-JUMP main
-HLT
+CALL create
+STR2 [0x19]
+END
+
+

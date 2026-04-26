@@ -42,7 +42,7 @@ class CPU{
 
         void initMap(){
             //instructionMap[cmd] =
-            instructionMap["HLT"] =  0b00000000;  // 0x00
+            instructionMap["HLT"] =  0b00000001;  // 0x00
             instructionMap["STR1"] = 0b10000000; // 0x80
             instructionMap["STR2"] = 0b10000001; // 0x81
             instructionMap["LDR1"] = 0b01000000; // 0x40
@@ -74,22 +74,21 @@ class CPU{
                     continue;
                 }
                 program += line + "\n";
-                lineCount++;
             }
 
             cout << "Program :" << endl << program;
 
-            uint16_t* token = parse(program);
+            uint16_t* token = parse(program, &lineCount);
             uint8_t i;
             for (i = 0; i < lineCount; i++)
             {
                 RAM[i] = token[i];
             }
 
-            SP = i;
+            SP = i+1;
 
-            cout << "\n\n\n"
-                 << "Translated program\n\n\n"
+            cout << "\n"
+                 << "================Translated program ==========\n"
                  << endl;
 
             for (i = 0; i < lineCount; i++)
@@ -99,18 +98,18 @@ class CPU{
 
                 bitset<8> firstHalfbin(firstHalf);
                 bitset<8> secondHalfbin(secondHalf);
-
+                
                 // cout << firstHalfbin << " : " << secondHalfbin << endl;
 
                 for (auto &pair : instructionMap)
                 {
                     if ((instructionMap[pair.first] == firstHalf))
                     {
-                        cout << pair.first << " 0x" << hex << static_cast<int>(secondHalf) << endl;
+                        cout << "0x" << hex << static_cast<int>(i) << ":" << " " << pair.first << " 0x" << hex << static_cast<int>(secondHalf) << endl;
                         break;
                     }
                     else if (((instructionMap[pair.first] | 0x10) == firstHalf)){
-                        cout << pair.first << " [0x" << hex << static_cast<int>(secondHalf)  << "]" << endl;
+                        cout << "0x" << hex << static_cast<int>(i) << ":" << " " << pair.first << " [0x" << hex << static_cast<int>(secondHalf) << "]" << endl;
                         break;
                     }
                 }
@@ -121,12 +120,12 @@ class CPU{
         }
 
         
-        uint16_t* parse(string &program)
+        uint16_t* parse(string &program, uint8_t* pLineCount)
         {
 
             map<string, uint16_t> funtionMap;
             uint16_t *binaries = new uint16_t(100);
-            uint16_t binaryIndex = 0;
+            uint16_t binaryIndex = 1;
 
             string buffer = "";
             int counter = 0;
@@ -136,10 +135,50 @@ class CPU{
             string currentAddress = "";
             string currentFunction = "";
 
+            bool functionStarted = false;
+
             for (char alphabet : program){
 
                 if (program[counter] == ' ' || program[counter] == '\n' || program[counter] == ':')
                 {
+                    if(buffer == "END"){
+                        functionStarted = false;
+                        buffer.clear();
+                        *(binaries + binaryIndex++) = ((instructionMap["POP"] | 0x10) << 8);
+                        counter++;
+                        continue;
+                    }
+
+                    if(buffer == "CALL"){
+                        //finding the function name
+                        uint8_t i = counter;
+                        buffer.clear();
+                        // string functionBuffer = "";
+                        
+                        while(1){
+                            cout << "char: \"" << program[i+1] << "\"" << endl;
+                            if(program[++i] == '\n'){
+                                if (!isKeyAvailable(buffer, funtionMap)){
+                                    throw runtime_error("Function \"" + buffer + "\" Not found");
+                                }
+                                cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
+                                *(binaries + binaryIndex) = ((instructionMap["PUSH"] | 0x10) << 8) | binaryIndex + 1;
+                                binaryIndex++;
+                                *(binaries + binaryIndex++) = ((instructionMap["JUMP"] | 0x10) << 8) | funtionMap[buffer];
+                                break;
+                            }else {
+                                string s(1, program[i]);
+                                buffer += s;
+                            }
+
+                            
+                        }
+
+                        buffer.clear();
+                        counter++;
+                        continue;
+                    }
+
                     if (buffer.substr(0, 2) == "0x")
                     {
                         currentData = buffer;
@@ -156,10 +195,22 @@ class CPU{
                     else if (program[counter] == ':')
                     {
                         currentFunction = buffer;
-                        if (funtionMap.find(buffer) != funtionMap.end())
+
+                        if (!isKeyAvailable(buffer, funtionMap))
                         {
-                            funtionMap[buffer] = counter;
+                            if (functionStarted)
+                            {
+                                throw runtime_error("function not ended near: " + (binaryIndex + 1 ));
+                            }
+                            funtionMap[buffer] = binaryIndex;
+                            if(buffer == "_main"){
+                                *(binaries) = ((instructionMap["JUMP"] | 0x10) << 8) | binaryIndex;
+                            }
+                            cout << "FUNCTION STARTED AND Address assigned: " << buffer << " 0x" << hex << binaryIndex << endl;
+                            
+                            functionStarted = true;
                         }
+
                         buffer.clear();
                     }
                     else
@@ -191,6 +242,7 @@ class CPU{
                         currentInstruction.clear();
                         currentAddress.clear();
                     }
+
                     buffer.clear();
                     counter++;
                     continue;
@@ -201,7 +253,21 @@ class CPU{
                 counter++;
 			}
 
+
+            cout << "Length of program: " << binaryIndex << endl;
+            *(pLineCount) = ++binaryIndex;
+
             return binaries;
+        }
+
+        bool isKeyAvailable(string &key, map<string, uint16_t> &map){
+            for(auto &pair : map){
+                if(key == pair.first){
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         void run(){
@@ -209,7 +275,9 @@ class CPU{
                 execute();
                 PC++;
             }
-		}
+
+            cout << "Programm ended at: 0x" << hex << static_cast<int>(PC) << endl;
+        }
     
         void execute(){
             IR = RAM[PC];
@@ -234,13 +302,12 @@ class CPU{
                 break;
             case 0b10010001: // STR2
                 R2 = RAM[data];
-                
                 break;
 
             case 0b01010000: // LOADR1
                 RAM[data] = (RAM[data] & 0xff00) + R1;
-
                 break;
+
             case 0b01010001: // LOADR2
                 RAM[data] = (RAM[data] & 0xff00) + R2;
                 break;
@@ -253,8 +320,8 @@ class CPU{
                 cout << data;
                 break;
 
-            case 0b00010101: // PRT Adress
-                cout << hex << (RAM[data] & 0x00ff) << endl;
+            case 0b00010101: // PRNT Adress
+                cout << (RAM[data] & 0x00ff) << endl;
                 break;
 
             case 0b00001000: // ADD Adress
@@ -273,7 +340,7 @@ class CPU{
                 RAM[data] = 0;
                 break;
 
-            case 0b11110000: // Move result of Accumulator
+            case 0b11010000: // Move result of Accumulator
                 RAM[data] = AC;
                 break;
 
@@ -281,18 +348,21 @@ class CPU{
                 
                 break;
 
-            // case 0b01110000: // PUSH
-            //     RAM[SP + SL] = (instructionMap["JUMP"] << 8) | data;
-            //     SL++;
-            //     break;
+            case 0b01110000: // PUSH
+                cout << "PUSH found" << endl;
+                RAM[SP + SL] = (instructionMap["JUMP"] << 8) | data;
+                SL++;
+                break;
 
-            // case 0b01110001: // POP
-            //     RAM[SP + SL] = data;
-            //     SL--;
-            //     break;
+            case 0b01110001: // POP
+                RAM[SP + SL] = 0;
+                PC = RAM[SP + SL];
+                cout << "POP found : now moving to : 0x" << hex << static_cast<int>(PC)  << endl;
+                SL--;
+                break;
 
             default:
-                cout << " Instruction 0x" << hex << instruction << " Not found";
+                cout << " Instruction 0x" << hex << instruction << " Not found" << endl;
                 break;
             }
         }
@@ -325,25 +395,10 @@ int main(){
     CPU cpu;
     // cpu.toHex("0x56");
     cpu.loadProgram();
-    // cpu.run();
+    // cpu.run();  
     cpu.showMemory();
 	int i;
    	cin >> i;
     return 0;
 }
 
-/*
-0000 : STR1 --> store in R1 from MEMORY data
-0001 : STR2 --> store in R2 from MEMORY data
-0002 : LOAD R1
-0003 : JUMP
-0004 : ADD
-0005 : HLT
-
-
-main:
-    STR1 1
-    STR2 3
-    LOAD R1
-    LOAD R2
-*/
