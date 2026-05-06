@@ -1,9 +1,13 @@
 #include <iostream>
 #include <stdint.h>
 #include <fstream>
+#include <sstream>
 #include <bitset>
 #include <map>
 using namespace std;
+
+#define RAM_SIZE 0xffff
+#define STACK_CAPACITY 0x32
 
 class CPU
 {
@@ -17,8 +21,11 @@ public:
     uint8_t PC = 0x00;
     uint16_t IR = 0x00;
     uint8_t SP = 0x00;
+    uint16_t SL = 0x00; //STACK_LENGTH
+
 
     map<string, uint16_t> instructionMap;
+
     enum FLAG
     {
         ZERO,
@@ -28,7 +35,7 @@ public:
 
     uint8_t flags[3] = {0, 0, 0};
 
-    uint16_t RAM[0xFF];
+    uint16_t RAM[RAM_SIZE];
 
     CPU()
     {
@@ -153,6 +160,9 @@ public:
     uint16_t *parse(string &program, uint8_t *pLineCount)
     {
         map<string, uint16_t> funtionMap;
+        map<string, string> variableMap;
+        map<uint16_t, string> variableLineNumberMap;
+
         uint16_t *binaries = new uint16_t(100);
         uint16_t binaryIndex = 2;
 
@@ -164,6 +174,8 @@ public:
         string currentFunction = "";
 
         bool functionStarted = false;
+
+        uint16_t variable_counter = 1;
 
         for (int i = 0; i < program.length(); i++)
         {
@@ -276,9 +288,48 @@ public:
                     continue;
                 }
 
+                
+                if(buffer == "DCLR"){
+                    // finding the function name
+                    buffer.clear();
+                    // string functionBuffer = "";
+
+                    while (1)
+                    {
+                        // cout << "char: \"" << program[i+1] << "\"" << endl;
+                        if (program[++i] == '\n')
+                        {
+                            string v_name = buffer.substr(1, buffer.length() - 1);
+                            if (!isKeyAvailable(buffer, variableMap))
+                            {
+                                printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
+                                variableMap[v_name] = to_string(variable_counter++);
+                                // *(binaries + binaryIndex) = ((instructionMap["NOP"] | 0x10) << 8);
+                                // binaryIndex++;
+                            }else {
+                                throw runtime_error("Variable \"" + buffer + "\" Already declared");
+                            }
+
+                            // variableLineNumberMap[binaryIndex] = variable_counter;
+                            // printf("Variable %s = line number %#x:  address [%#x] \n", buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
+                            // variable_counter++;
+
+                            break;
+                        }
+                        else
+                        {
+                            string s(1, program[i]);
+                            buffer += s;
+                        }
+                    }
+
+                    buffer.clear();
+                    continue;
+                }
+
                 if (buffer.substr(0, 2) == "0x")
                 {
-                    currentData = buffer;
+                    currentData = buffer.substr(2, buffer.length() - 1);
                 }
                 else if (buffer.substr(0, 1) == "[")
                 {
@@ -287,13 +338,15 @@ public:
                     {
                         throw;
                     }
-                    currentAddress = buffer.substr(1, indexOf - 1);
+                    currentAddress = buffer.substr(3, indexOf - 1);
                 }
-                else if (buffer.substr(0, 1) == "\'")
+                else if (buffer.substr(0, 1) == "\'" && buffer.substr(2, 3) == "\'")
                 {
-
-                    printf("Charactor found %c\n", static_cast<int>(buffer[1]));
-                    // currentData = static_cast<int>(buffer[1]);
+                    int value = static_cast<int>(buffer[1]);
+                    stringstream ss;
+                    ss << hex << value;
+                    currentData =  "0x" +  ss.str();
+                    buffer.clear();
                 }
                 else if (program[i] == ':')
                 {
@@ -303,7 +356,7 @@ public:
                     {
                         if (functionStarted)
                         {
-                            throw runtime_error("function not ended near: " + (binaryIndex + 1));
+                            throw runtime_error("Function not ended near: " + to_string(binaryIndex + 1));
                         }
                         funtionMap[buffer] = binaryIndex;
                         if (buffer == "_main")
@@ -317,8 +370,19 @@ public:
 
                     buffer.clear();
                 }
-                else
-                {
+                else if(buffer.substr(0, 1) == "$"){
+                    string v_name = buffer.substr(1, buffer.length() - 1);
+                    if (!isKeyAvailable(v_name, variableMap))
+                    {
+                        throw runtime_error("Variable \"" + v_name+ "\" not found");
+                    }else {
+                        currentAddress = variableMap[v_name];
+                        variableLineNumberMap[binaryIndex] = v_name;
+
+                        // printf("Current line number %d \n", static_cast<int>(binaryIndex));
+                        // printf("current instruction %s Variable is used %s\n current variable data is \"%s\" \n", currentInstruction.c_str(), v_name.c_str(), currentAddress.c_str());
+                    }
+                }else{
                     currentInstruction = buffer;
                 }
 
@@ -330,14 +394,14 @@ public:
                 }
                 else if (!currentInstruction.empty() && !currentData.empty())
                 {
-                    *(binaries + binaryIndex) = (instructionMap[currentInstruction] << 8) | (stoi(currentData.substr(2, 4), nullptr, 16));
+                    *(binaries + binaryIndex) = (instructionMap[currentInstruction] << 8) | (stoi(currentData, nullptr, 16));
                     binaryIndex++;
                     currentInstruction.clear();
                     currentData.clear();
                 }
                 else if (!currentInstruction.empty() && !currentAddress.empty())
                 {
-                    *(binaries + binaryIndex) = ((instructionMap[currentInstruction] | 0x10) << 8) | stoi(currentAddress.substr(2, 4), nullptr, 16);
+                    *(binaries + binaryIndex) = ((instructionMap[currentInstruction] | 0x10) << 8) | stoi(currentAddress, nullptr, 16);
                     binaryIndex++;
                     currentInstruction.clear();
                     currentAddress.clear();
@@ -359,10 +423,17 @@ public:
             buffer += s;
         }
 
-        
+        for (auto &pair : variableLineNumberMap)
+        {
+            string address = variableMap[pair.second];
+            uint16_t lineNumber = pair.first;
+            *(binaries + lineNumber) = *(binaries + lineNumber) & 0xff00 | (stoi(address, nullptr, 16) + binaryIndex + 2 + STACK_CAPACITY);
+            printf("Variable %s used at line --> %d\n", pair.second.c_str(), pair.first);
+        }
 
         cout << "Length of program: " << binaryIndex << endl;
         *(pLineCount) = ++binaryIndex;
+
 
         return binaries;
     }
@@ -380,16 +451,29 @@ public:
         return false;
     }
 
+    bool isKeyAvailable(string &key, map<string, string> &map)
+    {
+        for (auto &pair : map)
+        {
+            if (key == pair.first)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void run()
     {
         while (RAM[++PC] & 0xff00)
         {
 
-            printf("Pointing to : %#x\n", static_cast<int>(PC));
+            // printf("Pointing to : %#x\n", static_cast<int>(PC));
                 execute();
         }
 
-        printf("\n\nProgramm ended at: %#x", static_cast<int>(PC));
+        printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
     }
 
     void execute()
@@ -403,39 +487,38 @@ public:
         {
 
         case 0b10000000: // STR1
-            R1 = data;
+            
             break;
 
         case 0b10000001: // STR2
-            R2 = data;
+            
             break;
 
         case 0b10010000: // STR1 adress
-            R1 = RAM[data];
-
+            RAM[data] = R1;
             break;
-        case 0b10010001: // STR2
-            R2 = RAM[data];
+            
+        case 0b10010001: // STR2 address
+            RAM[data] = R2;
             break;
 
         case 0b01000000: // LDR1
-            RAM[data] = (RAM[data] & 0xff00) + R1;
+            R1 = data;
             break;
 
         case 0b01000001: // LDR2
-            RAM[data] = (RAM[data] & 0xff00) + R2;
+            R2 = data;
             break;
 
-        case 0b01010000: // LDR1
-            RAM[data] = RAM[R1];
+        case 0b01010000: // LDR1 address
+            R1 = RAM[data];
             break;
 
-        case 0b01010001: // LDR2
-            RAM[data] = RAM[R2];
+        case 0b01010001: // LDR2 address
+            R2 = RAM[data];
             break;
 
         case 0b00110000: // JUMP
-            
             PC = data;
             break;
 
@@ -450,26 +533,27 @@ public:
             break;
 
         case 0b00000101: // PRNT
-            printf("%x", data);
+            printf("OUT - %x\n", data);
             break;
 
         case 0b00010101: // PRNT Adress
-            printf("%x", RAM[data]);
+            printf("OUT - %x\n", RAM[data]);
             break;
 
         case 0b00000111: // PRTC
-            printf("%c", data);
+            printf("OUT - %c\n", data);
+            // printf("OUT - %x\n", RAM[data]);
             break;
 
         case 0b00010111: // PRTC Adress
-            printf("%c", RAM[data]);
+            printf("OUT - %c\n", RAM[data]);
             
             break;
 
         case 0b00001000: // ADR1
             result = AC + R1;
 
-            printf("Result is : %d", result);
+            printf("Result is : %d\n", result);
                 AC += R1;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -479,7 +563,7 @@ public:
         case 0b00001010:  //SBR1
             result = AC - R1;
 
-            printf("Result is : %d", result);
+            printf("Result is : %d\n", result);
             AC -= R1;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -488,7 +572,7 @@ public:
 
         case 0b00001011: // SBR2
             result = AC - R2;
-            printf("Result is : %d", result);
+            printf("Result is : %d\n", result);
             AC -= R2;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -524,36 +608,38 @@ public:
             break;
 
         case 0b01110000: // PUSH
-            SP++;
-            RAM[SP] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
+            
+            SL++;
+            check_overflow();
+            RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
 
 
-            printf("PUSH %#x at %#x \n", data, SP);
+            printf("PUSH %#x at %#x \n", data, SP + SL);
             break;
 
         case 0b01110011: // PUSZ
             if (flags[ZERO])
             {
-                SP++;
-                RAM[SP] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
+                SL++;
+                check_overflow();
+                RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
             }
 
-            // cout << "PUSZ "<< data <<  " at 0x" << hex << static_cast<int>(SP) << endl;
             break;
 
         case 0b01110100: // PUSN
             if (flags[NEGATIVE])
             {
-                SP++;
-                RAM[SP] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
+                SL++;
+                check_overflow();
+                RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
             }
 
-            // cout << "PUSZ "<< data <<  " at 0x" << hex << static_cast<int>(SP) << endl;
             break;
 
         case 0b01110001: // POP
-            PC = SP - 1;
-            SP--;
+            PC = SP + SL - 1;
+            SL--;
 
             break;
 
@@ -586,9 +672,14 @@ public:
     {
         for (int address = 0; address < limit; ++address)
         {
-            // bitset<16> bin(RAM[address]);
 
             printf("[%#x]:%#x\n", address, RAM[address]);
+        }
+    }
+
+    void check_overflow(){
+        if(SL > STACK_CAPACITY){
+            throw runtime_error("Stack overflowed....\n");
         }
     }
 };
