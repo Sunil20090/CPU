@@ -1,20 +1,47 @@
 
+DCLR $a
+DCLR $a1
+DCLR $a2
+DCLR $a3
+DCLR $counter
 
-print_F:
-PRTC 'F'
+DCLR $next_printable
 
+;this is sample comment
+
+save_name:
+LDR1 'S'
+LDR2 'O'
+
+STR1 $a1
+STR2 $a2
+
+LDR1 'N'
+LDR2 'U'
+
+STR1 $a3
+STR2 $a
+
+END
+
+
+print_name:
+PRTC $next_printable
+INC $next_printable
+
+DEC $counter
+LDR1 $counter
+CLR
+ADR1
+CALZ print_name
 
 END
 
 _main:
-DCLR $a1
-DCLR $a3
-STR1 [0x90]
-LDR1 $a1
-STR1 $a3
-LDR2 [0x88]
+PRTC 'A'
+PRTC 0x0A
+PRTC 'a'
 
-CALL print_F
-
+CALL save_name
 
 END

@@ -7,7 +7,7 @@
 using namespace std;
 
 #define RAM_SIZE 0xffff
-#define STACK_CAPACITY 0x32
+#define STACK_CAPACITY 100
 
 class CPU
 {
@@ -49,12 +49,14 @@ public:
 
     void initMap()
     {
-        // instructionMap[cmd] =
+        // mapping =
         instructionMap["HLT"] = 0b00000001;  // 0x01
         instructionMap["STR1"] = 0b10000000; // 0x80
         instructionMap["STR2"] = 0b10000001; // 0x81
         instructionMap["LDR1"] = 0b01000000; // 0x40
         instructionMap["LDR2"] = 0b01000001; // 0x41
+        instructionMap["LAR1"] = 0b01000010; // 0x13
+        instructionMap["LAR2"] = 0b01000011; // 0x13
         instructionMap["JUMP"] = 0b00100000; // 0x20
         instructionMap["JUPZ"] = 0b00100001; // 0x31
         instructionMap["JUPN"] = 0b00100010; // 0x32
@@ -71,7 +73,11 @@ public:
         instructionMap["PUSN"] = 0b01110100; // 0x74
         instructionMap["POP"] = 0b01110001;  // 0x71
         instructionMap["NOP"] = 0b00010011;  // 0x13
-    }
+        instructionMap["AOR1"] = 0b11010010; 
+        instructionMap["AOR2"] = 0b11010001;
+        instructionMap["INC"] = 0b11010011;
+        instructionMap["DEC"] = 0b11010100;
+        }
 
     void loadProgram(const string &programname)
     {
@@ -157,6 +163,7 @@ public:
         showMemory(0x9F);
     }
 
+    //parsing
     uint16_t *parse(string &program, uint8_t *pLineCount)
     {
         map<string, uint16_t> funtionMap;
@@ -179,6 +186,11 @@ public:
 
         for (int i = 0; i < program.length(); i++)
         {
+            if(program[i] == ';'){
+                while (program[++i] != '\n'){
+                    
+                }
+            }
 
             if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
             {
@@ -327,7 +339,7 @@ public:
                     continue;
                 }
 
-                if (buffer.substr(0, 2) == "0x")
+                if (buffer.substr(0, 2) == "0x" || buffer.substr(0, 2) == "0X")
                 {
                     currentData = buffer.substr(2, buffer.length() - 1);
                 }
@@ -431,7 +443,10 @@ public:
             printf("Variable %s used at line --> %d\n", pair.second.c_str(), pair.first);
         }
 
-        cout << "Length of program: " << binaryIndex << endl;
+        printf("Program size is  %d bytes\n", binaryIndex + variable_counter + STACK_CAPACITY);
+
+            //     cout
+            // << "Program size(Bytes): " << binaryIndex + variable_counter + STACK_CAPACITY << "" << endl;
         *(pLineCount) = ++binaryIndex;
 
 
@@ -483,15 +498,50 @@ public:
         uint8_t data = IR & 0x00ff;
         int result = 0;
 
+        //running
+
+
         switch (instruction)
         {
 
+        case 0b11010100: // DEC
+            RAM[data] = RAM[data] - 1;
+            break;
+
+        case 0b11010011: // INC
+            RAM[data] = RAM[data] + 1;
+            break;
+
+        case 0b11010010: // AOR1
+            R1 = data;
+            break;
+
+        case 0b11010001: // AOR2
+            R1 = data;
+            break;
+
+        case 0b01010010: // LAR1 address
+            RAM[R1] = RAM[data];
+            break;
+
+        case 0b01010011: // LAR2 address
+            RAM[R2] = RAM[data];
+            break;
+
+        case 0b01000010: // LAR1
+            RAM[R1] = data;
+            break;
+
+        case 0b01000011: // LAR2
+            RAM[R2] = data;
+            break;
+
         case 0b10000000: // STR1
-            
+            throw;
             break;
 
         case 0b10000001: // STR2
-            
+            throw;
             break;
 
         case 0b10010000: // STR1 adress
@@ -525,7 +575,7 @@ public:
         case 0b00110001: // JUPZ
             
             
-            PC = flags[ZERO] ? data : PC;
+            PC = !flags[ZERO] ? data : PC;
             break;
 
         case 0b00110010: // JUPN
@@ -533,27 +583,26 @@ public:
             break;
 
         case 0b00000101: // PRNT
-            printf("OUT - %x\n", data);
+            printf("%x", data);
             break;
 
         case 0b00010101: // PRNT Adress
-            printf("OUT - %x\n", RAM[data]);
+            printf("%x", RAM[data]);
             break;
 
         case 0b00000111: // PRTC
-            printf("OUT - %c\n", data);
-            // printf("OUT - %x\n", RAM[data]);
+            printf("%c", data);
             break;
 
         case 0b00010111: // PRTC Adress
-            printf("OUT - %c\n", RAM[data]);
+            printf("%c", RAM[data]);
             
             break;
 
         case 0b00001000: // ADR1
             result = AC + R1;
 
-            printf("Result is : %d\n", result);
+            // printf("Result is : %d\n", result);
                 AC += R1;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -563,7 +612,7 @@ public:
         case 0b00001010:  //SBR1
             result = AC - R1;
 
-            printf("Result is : %d\n", result);
+            // printf("Result is : %d\n", result);
             AC -= R1;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -572,7 +621,7 @@ public:
 
         case 0b00001011: // SBR2
             result = AC - R2;
-            printf("Result is : %d\n", result);
+            // printf("Result is : %d\n", result);
             AC -= R2;
             flags[ZERO] = result == 0;
             flags[NEGATIVE] = result < 0;
@@ -614,11 +663,11 @@ public:
             RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
 
 
-            printf("PUSH %#x at %#x \n", data, SP + SL);
+            // printf("PUSH %#x at %#x \n", data, SP + SL);
             break;
 
         case 0b01110011: // PUSZ
-            if (flags[ZERO])
+            if (!flags[ZERO])
             {
                 SL++;
                 check_overflow();
@@ -650,23 +699,6 @@ public:
         }
     }
 
-    void add(uint8_t value)
-    {
-        if (AC + value > 0xffff)
-        {
-            flags[CARRY] = 1;
-        }
-        AC += value;
-    }
-
-    void subtract(uint8_t value)
-    {
-        if (AC - value == 0)
-        {
-            flags[ZERO] = 0;
-        }
-        AC -= value;
-    }
 
     void showMemory(uint8_t limit = 0xFF)
     {
