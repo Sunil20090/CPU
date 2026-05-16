@@ -3,11 +3,45 @@
 #include <fstream>
 #include <sstream>
 #include <bitset>
+#include <string>
 #include <map>
 using namespace std;
 
-#define RAM_SIZE 0xffff
-#define STACK_CAPACITY 100
+#define RAM_SIZE 0xffff  //1024*8 bits (1KB)
+#define STACK_CAPACITY 12
+
+#define INS_HLT 0x10
+#define INS_JUMP 0x20
+#define INS_STORE 0x30
+#define INS_LOAD 0x40
+#define INS_ADD 0x50
+#define INS_MOVE 0x60
+#define INS_GET_ADDRESS 0x70
+#define INS_JUMP_IF_ZERO 0x80
+#define INS_INC 0x90
+#define INS_DEC 0xA0
+#define INS_SYSCALL 0xB0
+#define INS_PUSH 0xC0
+#define INS_POP 0xD0
+#define INS_PUSH_IF_ZERO 0xE0
+#define INS_LOAD_OF_ADDRESS 0x18
+#define INS_SUBTRACT 0x28
+#define INS_CLEAR_ACC 0x38
+#define INS_NOP 0x48
+#define INS_COMP 0x58
+#define INS_JUMP_IF_LESS 0x68
+#define INS_PUSH_IF_LESS 0x78
+#define INS_OR 0x88
+#define INS_AND 0x98
+
+
+#define INS_DATA_ADDRESS 0x04
+#define INS_R1 0x00
+#define INS_R2 0x01
+#define INS_R3 0x02
+#define INS_R4 0x03
+
+
 
 class CPU
 {
@@ -50,34 +84,59 @@ public:
     void initMap()
     {
         // mapping =
-        instructionMap["HLT"] = 0b00000001;  // 0x01
-        instructionMap["STR1"] = 0b10000000; // 0x80
-        instructionMap["STR2"] = 0b10000001; // 0x81
-        instructionMap["LDR1"] = 0b01000000; // 0x40
-        instructionMap["LDR2"] = 0b01000001; // 0x41
-        instructionMap["LAR1"] = 0b01000010; // 0x13
-        instructionMap["LAR2"] = 0b01000011; // 0x13
-        instructionMap["JUMP"] = 0b00100000; // 0x20
-        instructionMap["JUPZ"] = 0b00100001; // 0x31
-        instructionMap["JUPN"] = 0b00100010; // 0x32
-        instructionMap["ADR1"] = 0b00001000; // 0x08
-        instructionMap["ADR2"] = 0b00001001; // 0x09
-        instructionMap["SBR1"] = 0b00001010; // 0x0A
-        instructionMap["SBR2"] = 0b00001011; // 0x0B
-        instructionMap["PRNT"] = 0b00000101; // 0x05
-        instructionMap["PRTC"] = 0b00000111; // 0x07
-        instructionMap["CLR"] = 0b10100000;  // 0xA0
-        instructionMap["MOVR"] = 0b11000000; // 0xD0
-        instructionMap["PUSH"] = 0b01110000; // 0x70
-        instructionMap["PUSZ"] = 0b01110011; // 0x73
-        instructionMap["PUSN"] = 0b01110100; // 0x74
-        instructionMap["POP"] = 0b01110001;  // 0x71
-        instructionMap["NOP"] = 0b00010011;  // 0x13
-        instructionMap["AOR1"] = 0b11010010; 
-        instructionMap["AOR2"] = 0b11010001;
-        instructionMap["INC"] = 0b11010011;
-        instructionMap["DEC"] = 0b11010100;
+        instructionMap["HLT"] = INS_HLT;
+        instructionMap["STORE"] = INS_STORE; 
+        instructionMap["LOAD"] = INS_LOAD; 
+        instructionMap["LFAD"] = INS_LOAD_OF_ADDRESS;
+        instructionMap["JUMP"] = INS_JUMP;
+        instructionMap["JUPZ"] = INS_JUMP_IF_ZERO;
+        instructionMap["JUPN"] = INS_JUMP_IF_LESS;
+        instructionMap["ADD"] = INS_ADD;
+        instructionMap["SUB"] = INS_SUBTRACT;
+        instructionMap["CLR"] = INS_CLEAR_ACC; 
+        instructionMap["MOV"] = INS_MOVE;
+        instructionMap["PUSH"] = INS_PUSH;
+        instructionMap["PUSZ"] = INS_PUSH_IF_ZERO;
+        instructionMap["PUSN"] = INS_PUSH_IF_LESS;
+        instructionMap["POP"] = INS_POP; 
+        instructionMap["NOP"] = INS_NOP;  
+        instructionMap["AOR"] = INS_GET_ADDRESS; 
+        instructionMap["INC"] = INS_INC;
+        instructionMap["DEC"] = INS_DEC;
+        instructionMap["SYSCALL"] = INS_SYSCALL;
+        instructionMap["COMP"] = INS_COMP;
+        instructionMap["OR"] = INS_OR;
+        instructionMap["AND"] = INS_AND;
+    }
+
+    void translateProgramAt(uint16_t i)
+    {
+        uint8_t instruction = ((RAM[i] >> 10) & 0x00ff) << 2;
+        uint8_t middle = ((RAM[i] >> 8) & 0x03) + 1;
+        uint8_t secondHalf = RAM[i] & 0x00ff;
+
+        for (auto &pair : instructionMap)
+        {
+            if ((instructionMap[pair.first] == instruction))
+            {
+                printf("%#x: %s%d %#x\n",
+                       static_cast<int>(i),
+                       pair.first.c_str(), middle,
+                       static_cast<int>(secondHalf));
+                break;
+            }
+            else if (((instructionMap[pair.first] | INS_DATA_ADDRESS) == instruction))
+            {
+                printf("%#x: %s%d [%#x]\n",
+                        static_cast<int>(i),
+                        pair.first.c_str(), middle, static_cast<int>(secondHalf));
+                break;
+            }
         }
+    }
+
+    //0x43
+    //0b01000011
 
     void loadProgram(const string &programname)
     {
@@ -104,6 +163,7 @@ public:
              << program;
 
         uint16_t *token = parse(program, &lineCount);
+
         uint8_t i;
         for (i = 0; i < lineCount; i++)
         {
@@ -113,7 +173,7 @@ public:
         SP = i;
 
 
-        printf("Stack pointer is pointing to : %#x\n", i);
+        //printf("Stack pointer is pointing to : %#x\n", i);
 
                 cout
             << "\n"
@@ -123,29 +183,7 @@ public:
 
         for (i = 0; i < lineCount; i++)
         {
-            uint8_t firstHalf = (RAM[i] >> 8) & 0x00ff;
-            uint8_t secondHalf = RAM[i] & 0x00ff;
-
-            for (auto &pair : instructionMap)
-            {
-                if ((instructionMap[pair.first] == firstHalf))
-                {
-                    printf("%#x: %s %#x\n",
-                           static_cast<int>(i),
-                           pair.first.c_str(),
-                           static_cast<int>(secondHalf));
-                    break;
-                }
-                else if (((instructionMap[pair.first] | 0x10) == firstHalf))
-                {
-
-                    printf("%#x: %s [%#x]\n",
-                           static_cast<int>(i),
-                           pair.first.c_str(),
-                           static_cast<int>(secondHalf));
-                    break;
-                }
-            }
+            translateProgramAt(i);
         }
 
         try
@@ -160,22 +198,143 @@ public:
         cout << "Reading finished" << endl;
 
         run();
-        showMemory(0x9F);
+        showMemory(0x00, 0xFF);
     }
 
-    //parsing
+    typedef enum
+    {
+        TOKEN_TYPE_START,
+        TOKEN_TYPE_INSTRUCTION,
+        TOKEN_TYPE_REGISTER,
+        TOKEN_TYPE_OPERATOR,
+        TOKEN_TYPE_DATA,
+        TOKEN_TYPE_NEW_LINE
+    } TokenType;
+
+    typedef struct{
+        TokenType type;
+        string value;
+    } Token;
+
+
+    typedef struct Node{
+        char value[20];
+        struct Node* children[10];
+        int childLength;
+    } Node;
+
+
+
+    uint16_t* parse2(string &program, uint8_t *linecount)
+    {
+
+        Token *tokens = new Token[100];
+        int tokenIndex = 0;
+    
+        string buffer = "";
+
+        uint16_t *binaries = new uint16_t[100];
+
+        for (int i = 0; i < program.length(); i++)
+        {
+            while (
+                i < program.length() &&
+                program[i] == ' ')
+            {
+                i++;
+            }
+
+            if (i >= program.length())
+                break;
+
+            if (isalnum(program[i]) || program[i] == '_')
+            {
+                buffer.clear();
+
+                while (
+                    i < program.length() &&
+                    (isalnum(program[i]) || program[i] == '_'))
+                {
+                    buffer += program[i];
+                    i++;
+                }
+
+                i--;
+
+                //printf("TOKEN: \"%s\" \tTYPE alpha numeric\n", buffer.c_str());
+
+            }
+            else if (isOperator(program[i])){
+                buffer.clear();
+                buffer += program[i];
+                //printf("TOKEN: \"%s\" \tTYPE operator\n", buffer.c_str());
+
+            }else if(program[i] == '\n'){
+                buffer.clear();
+                buffer += program[i];
+                //printf("TOKEN: \"NEW LINE\" \tTYPE New Line\n", buffer.c_str());
+            }
+        }
+
+        // translateTokens(tokens, tokenIndex);
+
+        return binaries;
+    }
+
+    bool isOperator(char ch){
+
+        return ch == '[' || ch == ']' || ch == '$';
+
+    }
+
+    uint8_t
+        getRegister(char ch)
+    {
+
+        uint8_t register_value;
+
+        switch (ch)
+        {
+        case '1':
+            register_value = INS_R1;
+            break;
+
+        case '2':
+            register_value = INS_R2;
+            break;
+        case '3':
+            register_value = INS_R3;
+            break;
+        case '4':
+            register_value = INS_R4;
+            break;
+
+        default:
+            throw;
+            break;
+        }
+
+        return register_value;
+    }
+
+    void translateTokens(Token* tokens, int index){
+
+    }
+
+    // parsing
     uint16_t *parse(string &program, uint8_t *pLineCount)
     {
         map<string, uint16_t> funtionMap;
-        map<string, string> variableMap;
+        map<string, uint16_t> variableMap;
         map<uint16_t, string> variableLineNumberMap;
+        map<string, string> arrayMap;
 
         uint16_t *binaries = new uint16_t(100);
         uint16_t binaryIndex = 2;
 
         string buffer = "";
-
         string currentInstruction = "";
+        string middleData = "";
         string currentData = "";
         string currentAddress = "";
         string currentFunction = "";
@@ -192,15 +351,19 @@ public:
                 }
             }
 
+
+            if(program[i] == '\t'){
+                continue;
+            }
+
             if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
             {
 
                 if (buffer == "END")
                 {
                     functionStarted = false;
-
                     buffer.clear();
-                    *(binaries + binaryIndex++) = ((instructionMap["POP"] | 0x10) << 8);
+                    *(binaries + binaryIndex++) = ((INS_POP) << 8);
                     continue;
                 }
 
@@ -220,9 +383,9 @@ public:
                                 throw runtime_error("Function \"" + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
-                            *(binaries + binaryIndex) = ((instructionMap["PUSH"] | 0x10) << 8) | binaryIndex + 2;
+                            *(binaries + binaryIndex) = ((INS_PUSH | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((instructionMap["JUMP"] | 0x10) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
                             break;
                         }
                         else
@@ -252,9 +415,9 @@ public:
                                 throw runtime_error("Function \"" + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
-                            *(binaries + binaryIndex) = ((instructionMap["PUSZ"] | 0x10) << 8) | binaryIndex + 2;
+                            *(binaries + binaryIndex) = ((INS_PUSH_IF_ZERO | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((instructionMap["JUPZ"] | 0x10) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_ZERO | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
                             break;
                         }
                         else
@@ -279,14 +442,14 @@ public:
                         // cout << "char: \"" << program[i+1] << "\"" << endl;
                         if (program[++i] == '\n')
                         {
-                            if (!isKeyAvailable(buffer, funtionMap))
+                            if (!isKeyAvailable(buffer, funtionMap))    
                             {
                                 throw runtime_error("Function \"" + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
-                            *(binaries + binaryIndex) = ((instructionMap["PUSN"] | 0x10) << 8) | binaryIndex + 2;
+                            *(binaries + binaryIndex) = ((INS_PUSH_IF_LESS | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((instructionMap["JUPN"] | 0x10) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_LESS | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
                             break;
                         }
                         else
@@ -312,10 +475,29 @@ public:
                         if (program[++i] == '\n')
                         {
                             string v_name = buffer.substr(1, buffer.length() - 1);
-                            if (!isKeyAvailable(buffer, variableMap))
+                            int startIndex = v_name.find("[");
+                            int endIndex = v_name.find("]");
+                            //printf("Vriable: %s start: %d, end : %d\n", v_name.c_str(), startIndex, endIndex);
+
+                            if (startIndex != -1 && endIndex != -1)
                             {
-                                printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
-                                variableMap[v_name] = to_string(variable_counter++);
+                                string v_name_without_arr = v_name.substr(0, startIndex);
+
+                                if (!isKeyAvailable(v_name_without_arr, variableMap))
+                                {
+
+                                    int size = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
+                                    variableMap[v_name_without_arr] = variable_counter;
+                                    //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), v_name_without_arr.c_str(), binaryIndex, variable_counter);
+                                    variable_counter += size;
+                                }else {
+                                    throw runtime_error("Variable \"" + buffer + "\" Already declared");
+                                }
+                            }else if (!isKeyAvailable(buffer, variableMap))
+                            {
+                                //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
+                                variableMap[v_name] = variable_counter++;
+                                
                                 // *(binaries + binaryIndex) = ((instructionMap["NOP"] | 0x10) << 8);
                                 // binaryIndex++;
                             }else {
@@ -323,7 +505,7 @@ public:
                             }
 
                             // variableLineNumberMap[binaryIndex] = variable_counter;
-                            // printf("Variable %s = line number %#x:  address [%#x] \n", buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
+                            // //printf("Variable %s = line number %#x:  address [%#x] \n", buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
                             // variable_counter++;
 
                             break;
@@ -343,6 +525,12 @@ public:
                 {
                     currentData = buffer.substr(2, buffer.length() - 1);
                 }
+                else if (buffer.substr(0, 1) == "%")
+                {
+                    middleData = buffer.substr(1, 3);
+                    //printf("Register found! R%c\n", buffer[2]);
+                    buffer.clear();
+                }
                 else if (buffer.substr(0, 1) == "[")
                 {
                     int indexOf = buffer.find("]");
@@ -360,6 +548,7 @@ public:
                     currentData =  "0x" +  ss.str();
                     buffer.clear();
                 }
+                
                 else if (program[i] == ':')
                 {
                     currentFunction = buffer;
@@ -373,9 +562,9 @@ public:
                         funtionMap[buffer] = binaryIndex;
                         if (buffer == "_main")
                         {
-                            *(binaries + 1) = ((instructionMap["JUMP"] | 0x10) << 8) | binaryIndex;
+                            *(binaries + 1) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
                         }
-                        printf("FUNCTION STARTED AND Address assigned: %s %#x\n", buffer.c_str(), static_cast<int>(binaryIndex));
+                        //printf("FUNCTION STARTED AND Address assigned: %s %#x\n", buffer.c_str(), static_cast<int>(binaryIndex));
 
                         functionStarted = true;
                     }
@@ -383,27 +572,73 @@ public:
                     buffer.clear();
                 }
                 else if(buffer.substr(0, 1) == "$"){
+                    
                     string v_name = buffer.substr(1, buffer.length() - 1);
-                    if (!isKeyAvailable(v_name, variableMap))
-                    {
-                        throw runtime_error("Variable \"" + v_name+ "\" not found");
-                    }else {
-                        currentAddress = variableMap[v_name];
-                        variableLineNumberMap[binaryIndex] = v_name;
+                    int startIndex = v_name.find("[");
+                    int endIndex = v_name.find("]");
 
-                        // printf("Current line number %d \n", static_cast<int>(binaryIndex));
-                        // printf("current instruction %s Variable is used %s\n current variable data is \"%s\" \n", currentInstruction.c_str(), v_name.c_str(), currentAddress.c_str());
+                    if (startIndex != -1 && endIndex != -1)
+                    {
+                        string v_name_without_arr = v_name.substr(0, startIndex);
+
+                        //printf("Using array %s\n", v_name_without_arr.c_str());
+
+                        if (isKeyAvailable(v_name_without_arr, variableMap))
+                        {
+                            int index = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
+
+                            currentAddress = to_string(variableMap[v_name_without_arr] + index);
+                            //printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
+                            variableLineNumberMap[binaryIndex] = v_name_without_arr;
+                        }else {
+                            throw runtime_error("Array not found \"" + v_name_without_arr + "\" not found");
+                        }
+                    }
+                    else if (isKeyAvailable(v_name, variableMap))
+                    {
+                        currentAddress = to_string(variableMap[v_name]);
+                        variableLineNumberMap[binaryIndex] = v_name;
+                        // //printf("Current line number %d \n", static_cast<int>(binaryIndex));
+                        // //printf("current instruction %s Variable is used %s\n current variable data is \"%s\" \n", currentInstruction.c_str(), v_name.c_str(), currentAddress.c_str());
+                    }
+                    else
+                    {
+                        throw runtime_error("Variable \"" + v_name + "\" not found");
                     }
                 }else{
                     currentInstruction = buffer;
+                    middleData.clear();
+                    currentData.clear();
+                    currentAddress.clear();
                 }
+
+                // //printf(" [%s, %s, %s]\n", currentInstruction.c_str(), middleData.c_str(), currentAddress.c_str());
 
                 if (!currentFunction.empty())
                 {
-                    *(binaries + binaryIndex) = ((instructionMap["NOP"] | 0x10) << 8) | funtionMap[currentFunction];
+                    *(binaries + binaryIndex) = ((instructionMap["NOP"] | INS_DATA_ADDRESS) << 8) | funtionMap[currentFunction];
                     binaryIndex++;
                     currentFunction.clear();
                 }
+                else if (!currentInstruction.empty() && !currentData.empty() && !middleData.empty())
+                {
+                    
+                    *(binaries + binaryIndex) = (instructionMap[currentInstruction] | getRegister(middleData[1])) << 8 |  (stoi(currentData, nullptr, 16));
+                    binaryIndex++;
+                    currentInstruction.clear(); 
+                    middleData.clear();
+                    currentData.clear();
+                }
+                else if (!currentInstruction.empty() && !currentAddress.empty() && !middleData.empty())
+                {
+                    // //printf("Middledata %c", middleData[1]);
+                    *(binaries + binaryIndex) = (((instructionMap[currentInstruction] | INS_DATA_ADDRESS) | getRegister(middleData[1])) << 8)  | stoi(currentAddress, nullptr, 16);
+                    binaryIndex++;
+                    currentInstruction.clear();
+                    middleData.clear();
+                    currentAddress.clear();
+                }
+
                 else if (!currentInstruction.empty() && !currentData.empty())
                 {
                     *(binaries + binaryIndex) = (instructionMap[currentInstruction] << 8) | (stoi(currentData, nullptr, 16));
@@ -413,7 +648,7 @@ public:
                 }
                 else if (!currentInstruction.empty() && !currentAddress.empty())
                 {
-                    *(binaries + binaryIndex) = ((instructionMap[currentInstruction] | 0x10) << 8) | stoi(currentAddress, nullptr, 16);
+                    *(binaries + binaryIndex) = ((instructionMap[currentInstruction] | INS_DATA_ADDRESS) << 8) | stoi(currentAddress, nullptr, 16);
                     binaryIndex++;
                     currentInstruction.clear();
                     currentAddress.clear();
@@ -435,20 +670,36 @@ public:
             buffer += s;
         }
 
-        for (auto &pair : variableLineNumberMap)
+        for (auto &pair : variableMap)
         {
-            string address = variableMap[pair.second];
-            uint16_t lineNumber = pair.first;
-            *(binaries + lineNumber) = *(binaries + lineNumber) & 0xff00 | (stoi(address, nullptr, 16) + binaryIndex + 2 + STACK_CAPACITY);
-            printf("Variable %s used at line --> %d\n", pair.second.c_str(), pair.first);
+            // uint16_t address = variableMap[pair.second];
+            // uint16_t lineNumber = pair.first;
+
+            //printf("variableMap[%s]: %#x\n", pair.first.c_str(), pair.second);
+
+            // //printf("Available offset : %d\n", );
+            // *(binaries + lineNumber) = (*(binaries + lineNumber )& 0xff00) | (((address + binaryIndex + 2 + STACK_CAPACITY)) + (*(binaries + lineNumber) & 0x00ff));
+            // //printf("Variable %s used at line --> %d having value [%#x]\n", pair.second.c_str(), pair.first, *(binaries + lineNumber) & 0xff);
         }
 
-        printf("Program size is  %d bytes\n", binaryIndex + variable_counter + STACK_CAPACITY);
+        for (auto &pair : variableLineNumberMap)
+        {
+            // uint16_t address = variableMap[pair.second];
+            uint16_t lineNumber = pair.first;
 
-            //     cout
-            // << "Program size(Bytes): " << binaryIndex + variable_counter + STACK_CAPACITY << "" << endl;
+
+            uint16_t oldOffset = (*(binaries + lineNumber) & 0x00ff);
+
+            //printf("variablLineNumberMap[%#x]: %s  --> oldOffset:%d\n", pair.first, pair.second.c_str(), oldOffset);
+
+            // //printf("Available offset : %d\n", );
+            *(binaries + lineNumber) = (*(binaries + lineNumber ) & 0xff00) | ((oldOffset + binaryIndex + STACK_CAPACITY + 1));
+            // //printf("Variable %s used at line --> %d having value [%#x]\n", pair.second.c_str(), pair.first, *(binaries + lineNumber) & 0xff);
+        }
+
+        //printf("Program size is  %d bytes\n", binaryIndex + variable_counter + STACK_CAPACITY);
+
         *(pLineCount) = ++binaryIndex;
-
 
         return binaries;
     }
@@ -484,11 +735,12 @@ public:
         while (RAM[++PC] & 0xff00)
         {
 
-            // printf("Pointing to : %#x\n", static_cast<int>(PC));
+            // //printf("Pointing to : %#x\n", static_cast<int>(PC));
+                
                 execute();
         }
 
-        printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
+        //printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
     }
 
     void execute()
@@ -498,213 +750,310 @@ public:
         uint8_t data = IR & 0x00ff;
         int result = 0;
 
-        //running
+        // //printf("-->");
+        // translateProgramAt(PC);
 
+        //running
 
         switch (instruction)
         {
 
-        case 0b11010100: // DEC
+        case INS_SYSCALL:
+            systemCall();
+            break;
+
+        case INS_DEC | INS_DATA_ADDRESS: // DEC
             RAM[data] = RAM[data] - 1;
             break;
 
-        case 0b11010011: // INC
+        case INS_INC | INS_DATA_ADDRESS: 
             RAM[data] = RAM[data] + 1;
             break;
 
-        case 0b11010010: // AOR1
+        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R1: 
             R1 = data;
             break;
 
-        case 0b11010001: // AOR2
-            R1 = data;
-            break;
-
-        case 0b01010010: // LAR1 address
-            RAM[R1] = RAM[data];
-            break;
-
-        case 0b01010011: // LAR2 address
-            RAM[R2] = RAM[data];
-            break;
-
-        case 0b01000010: // LAR1
-            RAM[R1] = data;
-            break;
-
-        case 0b01000011: // LAR2
-            RAM[R2] = data;
-            break;
-
-        case 0b10000000: // STR1
-            throw;
-            break;
-
-        case 0b10000001: // STR2
-            throw;
-            break;
-
-        case 0b10010000: // STR1 adress
-            RAM[data] = R1;
-            break;
-            
-        case 0b10010001: // STR2 address
-            RAM[data] = R2;
-            break;
-
-        case 0b01000000: // LDR1
-            R1 = data;
-            break;
-
-        case 0b01000001: // LDR2
+        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R2:
             R2 = data;
             break;
 
-        case 0b01010000: // LDR1 address
+        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R3:
+            R3 = data;
+            break;
+
+        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R4:
+            R4 = data;
+            break;
+
+        case INS_STORE | INS_DATA_ADDRESS | INS_R1:
+            RAM[data] = R1;
+            R1 = 0;
+            break;
+
+        case INS_STORE | INS_DATA_ADDRESS | INS_R2:
+            RAM[data] = R2;
+            R2 = 0;
+            break;
+
+        case INS_STORE | INS_DATA_ADDRESS | INS_R3:
+            RAM[data] = R3;
+            R3 = 0;
+            break;
+
+        case INS_STORE | INS_DATA_ADDRESS | INS_R4:
+            RAM[data] = R4;
+            R3 = 0;
+            break;
+
+
+        case INS_LOAD | INS_R1: 
+            R1 = data;
+            break;
+
+        case INS_LOAD | INS_R2:
+            R2 = data;
+            break;
+
+        case INS_LOAD | INS_R3:
+            R3 = data;
+            break;
+
+        case INS_LOAD | INS_R4:
+            R4 = data;
+            break;
+
+        case INS_LOAD | INS_DATA_ADDRESS | INS_R1:
             R1 = RAM[data];
             break;
 
-        case 0b01010001: // LDR2 address
+        case INS_LOAD | INS_DATA_ADDRESS | INS_R2:
             R2 = RAM[data];
             break;
 
-        case 0b00110000: // JUMP
+        case INS_LOAD | INS_DATA_ADDRESS | INS_R3:
+            R3 = RAM[data];
+            break;
+
+        case INS_LOAD | INS_DATA_ADDRESS | INS_R4:
+            R4 = RAM[data];
+            break;
+
+        case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R1:
+            R1 = RAM[RAM[data]];
+            break;
+
+        case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R2:
+            R2 = RAM[RAM[data]];
+            break;
+
+        case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R3:
+            R3 = RAM[RAM[data]];
+            break;
+
+        case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R4:
+            R4 = RAM[RAM[data]];
+            break;
+
+        case INS_JUMP | INS_DATA_ADDRESS: 
             PC = data;
             break;
 
-        case 0b00110001: // JUPZ
-            
-            
-            PC = !flags[ZERO] ? data : PC;
+        case INS_JUMP_IF_ZERO | INS_DATA_ADDRESS: // JUPZ
+            PC = flags[ZERO] ? data : PC;
             break;
 
-        case 0b00110010: // JUPN
+        case INS_JUMP_IF_LESS | INS_DATA_ADDRESS: // JUPN
             PC = flags[NEGATIVE] ? data : PC;
             break;
 
-        case 0b00000101: // PRNT
-            printf("%x", data);
-            break;
-
-        case 0b00010101: // PRNT Adress
-            printf("%x", RAM[data]);
-            break;
-
-        case 0b00000111: // PRTC
-            printf("%c", data);
-            break;
-
-        case 0b00010111: // PRTC Adress
-            printf("%c", RAM[data]);
-            
-            break;
-
-        case 0b00001000: // ADR1
+        case INS_ADD | INS_R1: // ADR1
             result = AC + R1;
-
-            // printf("Result is : %d\n", result);
-                AC += R1;
-            flags[ZERO] = result == 0;
-            flags[NEGATIVE] = result < 0;
-            flags[CARRY] = result > 255;
+            AC += R1;
+            initFlags(result);            
             break;
 
-        case 0b00001010:  //SBR1
-            result = AC - R1;
-
-            // printf("Result is : %d\n", result);
-            AC -= R1;
-            flags[ZERO] = result == 0;
-            flags[NEGATIVE] = result < 0;
-            flags[CARRY] = result > 255;
-            break;
-
-        case 0b00001011: // SBR2
-            result = AC - R2;
-            // printf("Result is : %d\n", result);
-            AC -= R2;
-            flags[ZERO] = result == 0;
-            flags[NEGATIVE] = result < 0;
-            flags[CARRY] = result > 255;
-            break;
-
-        case 0b00001001:  //ADR2
+        case INS_ADD | INS_R2: // ADR1
             result = AC + R2;
-            
             AC += R2;
-            flags[ZERO] = result == 0;
-            flags[NEGATIVE] = result < 0;
-            flags[CARRY] = result > 255;
+            initFlags(result);
             break;
 
-        case 0b10100000: // CLR
+        case INS_ADD | INS_R3: // ADR1
+            result = AC + R3;
+            AC += R3;
+            
+            initFlags(result);
+            break;
+        case INS_ADD | INS_R4: // ADR1
+            result = AC + R4;
+            AC += R4;
+            initFlags(result);
+            break;
+
+        case INS_SUBTRACT | INS_R1:  //SBR1
+            result = AC - R1;
+            AC -= R1;
+            initFlags(result);
+            break;
+
+        case INS_SUBTRACT | INS_R2: // SBR2
+            result = AC - R2;
+            AC -= R2;
+            initFlags(result);
+            break;
+
+        case INS_SUBTRACT | INS_R3: // SBR3
+            result = AC - R3;
+            AC -= R3;
+            initFlags(result);
+            break;
+
+        case INS_SUBTRACT | INS_R4: // SBR4
+            result = AC - R4;
+            AC -= R4;
+            initFlags(result);
+            break;
+
+        case INS_CLEAR_ACC: // CLR
             AC = 0;
             flags[ZERO] = 1;
             flags[NEGATIVE] =  0;
             flags[CARRY] = 0;
             break;
 
-        case 0b10110000: // CLR at address
+
+        case INS_COMP | INS_DATA_ADDRESS | INS_R1:
+            flags[ZERO] = R1 == RAM[data];
+            flags[NEGATIVE] = R1 > RAM[data];
+            break;
+
+        case INS_COMP | INS_DATA_ADDRESS | INS_R2:
+            flags[ZERO] = R2 == RAM[data];
+            flags[NEGATIVE] = R2 > RAM[data];
+            break;
+
+        case INS_COMP | INS_DATA_ADDRESS | INS_R3:
+            flags[ZERO] = R3 == RAM[data];
+
+            //printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
+            flags[NEGATIVE] = R3 > RAM[data];
+            break;
+        case INS_COMP | INS_DATA_ADDRESS | INS_R4:
+            flags[ZERO] = R4 == RAM[data];
+            flags[NEGATIVE] = R4 > RAM[data];
+            break;
+
+        case INS_COMP | INS_R1:
+            flags[ZERO] = R1 == data;
+            flags[NEGATIVE] = R1 > data;
+            break;
+
+        case INS_COMP | INS_R2:
+            flags[ZERO] = R2 == data;
+            flags[NEGATIVE] = R2 > data;
+            break;
+
+        case INS_COMP | INS_R3:
+            flags[ZERO] = R3 == data;
+            flags[NEGATIVE] = R3 > data;
+            break;
+        case INS_COMP | INS_R4:
+            flags[ZERO] = R4 == data;
+            flags[NEGATIVE] = R4 > data;
+            break;
+
+        case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
             RAM[data] = 0;
             break;
 
-        case 0b11010000: // Move result of Accumulator
+        case INS_MOVE | INS_DATA_ADDRESS:
             RAM[data] = AC;
             break;
 
-        case 0b00000011: // NOP
+        case INS_NOP: // NOP
 
             break;
 
-        case 0b01110000: // PUSH
-            
+        case INS_PUSH | INS_DATA_ADDRESS: // PUSH
             SL++;
             check_overflow();
-            RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
-
-
-            // printf("PUSH %#x at %#x \n", data, SP + SL);
+            RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
             break;
 
-        case 0b01110011: // PUSZ
-            if (!flags[ZERO])
-            {
-                SL++;
-                check_overflow();
-                RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
-            }
-
-            break;
-
-        case 0b01110100: // PUSN
+        case INS_PUSH_IF_LESS | INS_DATA_ADDRESS:
             if (flags[NEGATIVE])
             {
                 SL++;
                 check_overflow();
-                RAM[SP + SL] = ((instructionMap["JUMP"] | 0x10) << 8) | (data - 1);
+                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+            }
+        break;
+
+        case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
+            if (flags[ZERO])
+            {
+                SL++;
+                check_overflow();
+                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
             }
 
             break;
 
-        case 0b01110001: // POP
+        case INS_POP: // POP
             PC = SP + SL - 1;
             SL--;
 
             break;
 
         default:
-
-            printf("Instruction %#x Not found", instruction);
+            //printf("Invalid %#x instruction found\n", instruction);
             break;
         }
     }
 
+    void systemCall(){
+        //here talking to kernal
 
-    void showMemory(uint8_t limit = 0xFF)
-    {
-        for (int address = 0; address < limit; ++address)
+       //printf("system called with %d\t R1 = %#x\n", static_cast<int>(IR & 0x00ff), static_cast<int>(R1));
+        switch (IR & 0x00ff)
         {
+            case 0x01:
+                printf("%c", RAM[R1]);
+                break;
 
+            case 0x02:
+                char x;
+                scanf("%c", x);
+                // printf("Got the char %c\n", x);
+                RAM[R1] = x;
+                break;
+
+            case 0x03:
+                for(int i=0; i<R2; i++){
+                    printf("%c", RAM[R1 + i]);
+                }
+                break;
+
+            case 0x04:
+                char text[40];
+                scanf("%s", text);
+                for (int i = 0; i < R2 && text[i] != '\0'; i++)
+                {
+                    RAM[R1 + i] = text[i];
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    void showMemory(uint8_t start = 0x00, uint8_t limit = 0xFF)
+    {
+        printf("\n");
+        for (int address = start; address <= limit; ++address)
+        {
             printf("[%#x]:%#x\n", address, RAM[address]);
         }
     }
@@ -714,13 +1063,20 @@ public:
             throw runtime_error("Stack overflowed....\n");
         }
     }
+
+    void initFlags(int result){
+        // flags[ZERO] = result == 0;
+        // flags[NEGATIVE] = result < 0;
+        // flags[CARRY] = result > 255;
+    }
+
 };
 
 int main()
 {
 
     CPU cpu;
-    cpu.loadProgram("prog.os");
+    cpu.loadProgram("calc.os");
     
     int i;
     cin >> i;
