@@ -1,29 +1,25 @@
-
-DCLR $a
-DCLR $b
-
-DCLR $next_printable
-
-;this is sample comment
-
-
-print_name:
-PRTC $next_printable
-INC $next_printable
-
-DEC $counter
-LDR1 $counter
-CLR
-ADR1
-CALZ print_name
-
-END
-
 _main:
-PRTC 'A'
-PRTC 0x0A
-PRTC 'a'
+    DCLR $a
+    LOAD %R1 0x09
+    STORE %R1 $a
 
-CALL save_name
+    DCLR $b
+    LOAD %R1 0x04
+    STORE %R1 $b
+
+    LOAD %R1 $a
+    LOAD %R2 $b
+
+    CLR
+    ADD %R1
+    SUB %R2
+    LOAD %R1 '0'
+    ADD %R1
+
+    DCLR $c
+    MOV $c
+
+    AOR %R1 $c
+    SYSCALL 0x01
 
 END

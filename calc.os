@@ -1,10 +1,9 @@
-DCLR $first_number[3]
+DCLR $first_number[2]
 DCLR $b
-DCLR $second_number[6]
+DCLR $second_number[2]
 DCLR $RESULT
 
 take_number:
-
     LOAD %R2 0x03
     SYSCALL 0x04
 END
@@ -46,19 +45,12 @@ END
 
 
 convert_number:
-
-    AOR %R1 $first_number
     LOAD %R2 '0'
-
     CLR
     ADD %R1 0x00
     SUB %R2 0x00
 
     MOV $RESULT
-
-    AOR %R1 $RESULT
-
-    SYSCALL 0x01
 END
 
 
@@ -66,9 +58,31 @@ _main:
 
     CALL take_inputs
 
+    LOAD %R1 $first_number[0]
     CALL convert_number
+    LOAD %R1 $RESULT
+    STORE %R1 $first_number[1]
 
-    CALL print_numbers
+    LOAD %R1 $second_number[0]
+    CALL convert_number
+    LOAD %R1 $RESULT
+    STORE %R1 $second_number[1]
+
+
+    LOAD %R1 $first_number[1]
+    LOAD %R2 $second_number[1]
+
+    CLR
+    ADD %R1
+    SUB %R2
+
+    LOAD %R1 '0'
+    ADD %R1
+
+    MOV $b
+
+    AOR %R1 $b
+    SYSCALL 0x01
 
 END
 
