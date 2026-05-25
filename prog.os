@@ -20,6 +20,6 @@ _main:
     MOV $c
 
     AOR %R1 $c
-    SYSCALL 0x01
+    SYSCALL 0x00
 
 END

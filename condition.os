@@ -8,7 +8,7 @@ print_a:
     LOAD %R1 'A'
     STORE %R1 $a_value
     AOR %R1 $a_value
-    SYSCALL 0x01
+    SYSCALL 0x00
 END
 
 
@@ -17,13 +17,13 @@ print_b:
     STORE %R1 $b_value
 
     AOR %R1 $b_value
-    SYSCALL 0x01
+    SYSCALL 0x00
 END
 
 
 take_input:
     AOR %R1 $choice
-    SYSCALL 0x02
+    SYSCALL 0x01
 END
 
 

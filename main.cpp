@@ -10,6 +10,8 @@ using namespace std;
 #define RAM_SIZE 0xffff  //1024*8 bits (1KB)
 #define STACK_CAPACITY 50
 
+#define IS_DEBUG_PRINT 1
+
 #define INS_HLT 0x10
 #define INS_JUMP 0x20
 #define INS_STORE 0x30
@@ -37,17 +39,16 @@ using namespace std;
 #define INS_RIGHT_SHIFT 0xb8
 
 
+
 #define INS_DATA_ADDRESS 0x04
 #define INS_R1 0x00
 #define INS_R2 0x01
 #define INS_R3 0x02
 #define INS_R4 0x03
 
-
-#define SYS_STREAM 0x04
-
-#define SYS_PRINT 0x00
-#define SYS_SCAN 0x01
+#define SYS_STREAM 0x04             //00000100
+#define SYS_PRINT 0x00              //00000000
+#define SYS_SCAN 0x01               //00000001
 
 
 class CPU
@@ -126,18 +127,24 @@ public:
         {
             if ((instructionMap[pair.first] == instruction))
             {
-                printf("%#x: %s%d %#x\n",
-                       static_cast<int>(i),
-                       pair.first.c_str(), middle,
-                       static_cast<int>(secondHalf));
-                break;
+                if (IS_DEBUG_PRINT)
+                {
+                    printf("%#x: %s%d %#x\n",
+                           static_cast<int>(i),
+                           pair.first.c_str(), middle,
+                           static_cast<int>(secondHalf));
+                    break;
+                }
             }
             else if (((instructionMap[pair.first] | INS_DATA_ADDRESS) == instruction))
             {
-                printf("%#x: %s%d [%#x]\n",
-                        static_cast<int>(i),
-                        pair.first.c_str(), middle, static_cast<int>(secondHalf));
-                break;
+                if(IS_DEBUG_PRINT){
+                    printf("%#x: %s%d [%#x]\n",
+                           static_cast<int>(i),
+                           pair.first.c_str(), middle, static_cast<int>(secondHalf));
+                    break;
+                }
+                
             }
         }
     }
@@ -166,10 +173,12 @@ public:
             program += line + "\n";
         }
 
-        cout << "Program Loaded:" << programname << endl
-             << program;
+        if(IS_DEBUG_PRINT){
+            cout << "Program Loaded:" << programname << endl
+                 << program;
+        }
 
-        uint16_t *token = parse(program, &lineCount);
+        uint16_t *token = parse(programname, program, &lineCount);
 
         uint8_t i;
         for (i = 0; i < lineCount; i++)
@@ -202,10 +211,15 @@ public:
             cout << "Some error occured\n";
         }
 
-        cout << "Reading finished" << endl;
+        if(IS_DEBUG_PRINT){
+            cout << "Reading finished" << endl;
+        }
 
         run();
-        showMemory(0x00, 0xFF);
+        if(IS_DEBUG_PRINT){
+            showMemory(0x00, 0xFF);
+        }
+
     }
 
 
@@ -239,7 +253,7 @@ public:
     }
 
     // parsing
-    uint16_t *parse(string &program, uint8_t *pLineCount)
+    uint16_t *parse(string fileName, string &program, uint8_t *pLineCount)
     {
         map<string, uint16_t> funtionMap;
         map<string, uint16_t> variableMap;
@@ -268,7 +282,6 @@ public:
                 }
             }
 
-
             if(program[i] == '\t'){
                 continue;
             }
@@ -279,9 +292,31 @@ public:
                 if (buffer == "END")
                 {
                     functionStarted = false;
+                    currentFunction = "";
                     buffer.clear();
                     *(binaries + binaryIndex++) = ((INS_POP) << 8);
                     continue;
+                }
+
+                if(buffer == "ACCESS"){
+                    buffer.clear();
+                    while (1)
+                    {
+                        if (program[++i] == '\n'){
+                            if(IS_DEBUG_PRINT){
+                                printf("File name found %s\n", buffer.c_str());
+                            }
+                            break;
+                           
+                        }else {
+                            string s(1, program[i]);
+                            buffer += s;
+                        }
+                    }
+
+                    buffer.clear();
+                    continue;
+                    
                 }
 
                 if (buffer == "CALL")
@@ -295,14 +330,14 @@ public:
                         // cout << "char: \"" << program[i+1] << "\"" << endl;
                         if (program[++i] == '\n')
                         {
-                            if (!isKeyAvailable(buffer, funtionMap))
+                            if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
-                                throw runtime_error("Function \"" + buffer + "\" Not found");
+                                throw runtime_error("CALL Function \"" + fileName + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
                             *(binaries + binaryIndex) = ((INS_PUSH | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
                             break;
                         }
                         else
@@ -327,14 +362,14 @@ public:
                         // cout << "char: \"" << program[i+1] << "\"" << endl;
                         if (program[++i] == '\n')
                         {
-                            if (!isKeyAvailable(buffer, funtionMap))
+                            if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
-                                throw runtime_error("Function \"" + buffer + "\" Not found");
+                                throw runtime_error("CALLZ Function \"" + fileName + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_ZERO | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_ZERO | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_ZERO | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
                             break;
                         }
                         else
@@ -359,14 +394,14 @@ public:
                         // cout << "char: \"" << program[i+1] << "\"" << endl;
                         if (program[++i] == '\n')
                         {
-                            if (!isKeyAvailable(buffer, funtionMap))    
+                            if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
-                                throw runtime_error("Function \"" + buffer + "\" Not found");
+                                throw runtime_error("CALLNFunction \"" + buffer + "\" Not found");
                             }
                             // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_LESS | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
-                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_LESS | INS_DATA_ADDRESS) << 8) | funtionMap[buffer];
+                            *(binaries + binaryIndex++) = ((INS_JUMP_IF_LESS | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
                             break;
                         }
                         else
@@ -400,20 +435,21 @@ public:
                             {
                                 string v_name_without_arr = v_name.substr(0, startIndex);
 
-                                if (!isKeyAvailable(v_name_without_arr, variableMap))
+                                if (!isKeyAvailable(fileName + currentFunction + v_name_without_arr, variableMap))
                                 {
                                     int size = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
-                                    variableMap[v_name_without_arr] = variable_counter;
+                                    variableMap[fileName + currentFunction + v_name_without_arr] = variable_counter;
                                     //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), v_name_without_arr.c_str(), binaryIndex, variable_counter);
                                     variable_counter += size;
                                 }else {
                                     throw runtime_error("Variable \"" + buffer + "\" Already declared");
                                 }
-                            }else if (!isKeyAvailable(buffer, variableMap))
+                            }
+                            else if (!isKeyAvailable(fileName + currentFunction + buffer, variableMap))
                             {
                                 //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
-                                variableMap[v_name] = variable_counter++;
-                                
+                                variableMap[fileName + currentFunction + v_name] = variable_counter++;
+
                                 // *(binaries + binaryIndex) = ((instructionMap["NOP"] | 0x10) << 8);
                                 // binaryIndex++;
                             }else {
@@ -469,13 +505,13 @@ public:
                 {
                     currentFunction = buffer;
 
-                    if (!isKeyAvailable(buffer, funtionMap))
+                    if (!isKeyAvailable(fileName + buffer, funtionMap))
                     {
                         if (functionStarted)
                         {
                             throw runtime_error("Function not ended near: " + to_string(binaryIndex + 1));
                         }
-                        funtionMap[buffer] = binaryIndex;
+                        funtionMap[fileName + buffer] = binaryIndex;
                         if (buffer == "_main")
                         {
                             *(binaries + 1) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
@@ -499,21 +535,21 @@ public:
 
                         //printf("Using array %s\n", v_name_without_arr.c_str());
 
-                        if (isKeyAvailable(v_name_without_arr, variableMap))
+                        if (isKeyAvailable(fileName + currentFunction + v_name_without_arr, variableMap))
                         {
                             int index = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
 
-                            currentAddress = to_string(variableMap[v_name_without_arr] + index);
+                            currentAddress = to_string(variableMap[fileName + currentFunction + v_name_without_arr] + index);
                             //printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
-                            variableLineNumberMap[binaryIndex] = v_name_without_arr;
+                            variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name_without_arr;
                         }else {
                             throw runtime_error("Array not found \"" + v_name_without_arr + "\" not found");
                         }
                     }
-                    else if (isKeyAvailable(v_name, variableMap))
+                    else if (isKeyAvailable(fileName + currentFunction + v_name, variableMap))
                     {
-                        currentAddress = to_string(variableMap[v_name]);
-                        variableLineNumberMap[binaryIndex] = v_name; 
+                        currentAddress = to_string(variableMap[fileName + currentFunction + v_name]);
+                        variableLineNumberMap[binaryIndex] = fileName + currentFunction +   v_name;
                     }
                     else
                     {
@@ -612,7 +648,7 @@ public:
         return binaries;
     }
 
-    bool isKeyAvailable(string &key, map<string, uint16_t> &map)
+    bool isKeyAvailable(const string &key, map<string, uint16_t> &map)
     {
         for (auto &pair : map)
         {
@@ -625,7 +661,7 @@ public:
         return false;
     }
 
-    bool isKeyAvailable(string &key, map<string, string> &map)
+    bool isKeyAvailable(const string &key, map<string, string> &map)
     {
         for (auto &pair : map)
         {
@@ -1055,7 +1091,7 @@ int main()
 
     CPU cpu;
 
-    const string programs[4] = {"prog.os", "calc.os", "image.os", "condition.os"};
+    const string programs[5] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os"};
 
     printf("Available programs:\n");
 

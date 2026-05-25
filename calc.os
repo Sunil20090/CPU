@@ -4,14 +4,14 @@ DCLR $second_number[2]
 DCLR $RESULT
 
 take_number:
-    LOAD %R2 0x03
-    SYSCALL 0x04
+    LOAD %R2 0x02
+    SYSCALL 0x05
 END
 
 
 print:
-    LOAD %R2 0x03
-    SYSCALL 0x03
+    LOAD %R2 0x02
+    SYSCALL 0x04
 END
 
 
@@ -36,11 +36,10 @@ END
 
 
 print_space:
-
     LOAD %R1 '_'
     STORE %R1 $b
     AOR %R1 $b
-    SYSCALL 0x01
+    SYSCALL 0x00
 END
 
 
@@ -82,7 +81,7 @@ _main:
     MOV $b
 
     AOR %R1 $b
-    SYSCALL 0x01
+    SYSCALL 0x00
 
 END
 
