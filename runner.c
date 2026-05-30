@@ -30,6 +30,9 @@
 #define INS_LEFT_SHIFT 0xa8
 #define INS_RIGHT_SHIFT 0xb8
 
+
+
+
 #define INS_DATA_ADDRESS 0x04
 #define INS_R1 0x00
 #define INS_R2 0x01

@@ -7,10 +7,8 @@
 #include <map>
 using namespace std;
 
-#define RAM_SIZE 0xffff  //1024*8 bits (1KB)
+#define RAM_SIZE 0xffff // 1024*8 bits (1KB)
 #define STACK_CAPACITY 50
-
-#define IS_DEBUG_PRINT 1
 
 #define INS_HLT 0x10
 #define INS_JUMP 0x20
@@ -38,18 +36,15 @@ using namespace std;
 #define INS_LEFT_SHIFT 0xa8
 #define INS_RIGHT_SHIFT 0xb8
 
-
-
 #define INS_DATA_ADDRESS 0x04
 #define INS_R1 0x00
 #define INS_R2 0x01
 #define INS_R3 0x02
 #define INS_R4 0x03
 
-#define SYS_STREAM 0x04             //00000100
-#define SYS_PRINT 0x00              //00000000
-#define SYS_SCAN 0x01               //00000001
-
+#define SYS_STREAM 0x04 // 00000100
+#define SYS_PRINT 0x00  // 00000000
+#define SYS_SCAN 0x01   // 00000001
 
 class CPU
 {
@@ -63,8 +58,9 @@ public:
     uint8_t PC = 0x00;
     uint16_t IR = 0x00;
     uint8_t SP = 0x00;
-    uint16_t SL = 0x00; //STACK_LENGTH
+    uint16_t SL = 0x00; // STACK_LENGTH
 
+    uint8_t IS_DEBUG_PRINT = 1;
 
     map<string, uint16_t> instructionMap;
 
@@ -93,28 +89,30 @@ public:
     {
         // mapping =
         instructionMap["HLT"] = INS_HLT;
-        instructionMap["STORE"] = INS_STORE; 
-        instructionMap["LOAD"] = INS_LOAD; 
+        instructionMap["STORE"] = INS_STORE;
+        instructionMap["LOAD"] = INS_LOAD;
         instructionMap["LFAD"] = INS_LOAD_OF_ADDRESS;
         instructionMap["JUMP"] = INS_JUMP;
         instructionMap["JUPZ"] = INS_JUMP_IF_ZERO;
         instructionMap["JUPN"] = INS_JUMP_IF_LESS;
         instructionMap["ADD"] = INS_ADD;
         instructionMap["SUB"] = INS_SUBTRACT;
-        instructionMap["CLR"] = INS_CLEAR_ACC; 
+        instructionMap["CLR"] = INS_CLEAR_ACC;
         instructionMap["MOV"] = INS_MOVE;
         instructionMap["PUSH"] = INS_PUSH;
         instructionMap["PUSZ"] = INS_PUSH_IF_ZERO;
         instructionMap["PUSN"] = INS_PUSH_IF_LESS;
-        instructionMap["POP"] = INS_POP; 
-        instructionMap["NOP"] = INS_NOP;  
-        instructionMap["AOR"] = INS_GET_ADDRESS; 
+        instructionMap["POP"] = INS_POP;
+        instructionMap["NOP"] = INS_NOP;
+        instructionMap["AOR"] = INS_GET_ADDRESS;
         instructionMap["INC"] = INS_INC;
         instructionMap["DEC"] = INS_DEC;
         instructionMap["SYSCALL"] = INS_SYSCALL;
         instructionMap["COMP"] = INS_COMP;
         instructionMap["OR"] = INS_OR;
         instructionMap["AND"] = INS_AND;
+        instructionMap["LTS"] = INS_LEFT_SHIFT;
+        instructionMap["RTS"] = INS_RIGHT_SHIFT;
     }
 
     void translateProgramAt(uint16_t i)
@@ -138,19 +136,19 @@ public:
             }
             else if (((instructionMap[pair.first] | INS_DATA_ADDRESS) == instruction))
             {
-                if(IS_DEBUG_PRINT){
+                if (IS_DEBUG_PRINT)
+                {
                     printf("%#x: %s%d [%#x]\n",
                            static_cast<int>(i),
                            pair.first.c_str(), middle, static_cast<int>(secondHalf));
                     break;
                 }
-                
             }
         }
     }
 
-    //0x43
-    //0b01000011
+    // 0x43
+    // 0b01000011
 
     void loadProgram(const string &programname)
     {
@@ -173,12 +171,14 @@ public:
             program += line + "\n";
         }
 
-        if(IS_DEBUG_PRINT){
+        if (IS_DEBUG_PRINT)
+        {
             cout << "Program Loaded:" << programname << endl
                  << program;
         }
 
-        uint16_t *token = parse(programname, program, &lineCount);
+        map<uint16_t, string> variableLineNumberMap;
+        uint16_t *token = parse(programname, program, variableLineNumberMap, &lineCount);
 
         uint8_t i;
         for (i = 0; i < lineCount; i++)
@@ -188,14 +188,12 @@ public:
 
         SP = i;
 
+        // printf("Stack pointer is pointing to : %#x\n", i);
 
-        //printf("Stack pointer is pointing to : %#x\n", i);
-
-                cout
+        cout
             << "\n"
             << "================Translated program ==========\n"
             << endl;
-
 
         for (i = 0; i < lineCount; i++)
         {
@@ -211,17 +209,17 @@ public:
             cout << "Some error occured\n";
         }
 
-        if(IS_DEBUG_PRINT){
+        if (IS_DEBUG_PRINT)
+        {
             cout << "Reading finished" << endl;
         }
 
         run();
-        if(IS_DEBUG_PRINT){
+        if (IS_DEBUG_PRINT)
+        {
             showMemory(0x00, 0xFF);
         }
-
     }
-
 
     uint8_t getRegister(char ch)
     {
@@ -253,12 +251,11 @@ public:
     }
 
     // parsing
-    uint16_t *parse(string fileName, string &program, uint8_t *pLineCount)
+    uint16_t *parse(string fileName, string &program, map<uint16_t, string> variableLineNumberMap, uint8_t *pLineCount)
     {
         map<string, uint16_t> funtionMap;
         map<string, uint16_t> variableMap;
-        map<uint16_t, string> variableLineNumberMap;
-        map<string, string> arrayMap;
+        map<string, uint16_t> arrayMap;
 
         uint16_t *binaries = new uint16_t(100);
         uint16_t binaryIndex = 2;
@@ -276,13 +273,15 @@ public:
 
         for (int i = 0; i < program.length(); i++)
         {
-            if(program[i] == ';'){
-                while (program[++i] != '\n'){
-                    
+            if (program[i] == ';')
+            {
+                while (program[++i] != '\n')
+                {
                 }
             }
 
-            if(program[i] == '\t'){
+            if (program[i] == '\t')
+            {
                 continue;
             }
 
@@ -298,17 +297,96 @@ public:
                     continue;
                 }
 
-                if(buffer == "ACCESS"){
+                if (buffer == "SAVE")
+                {
+                    buffer.clear();
+
+                    while (1)
+                    {
+
+                        if (program[++i] == '\n')
+                        {
+                            // if (buffer.substr(0, 1) == "\"" && buffer.substr(buffer.length() - 1, 1) == "\"")
+                            // {
+                            if (IS_DEBUG_PRINT)
+                            {
+
+                                int index = buffer.find("$");
+                                int wideSpaceIndex = buffer.find(" ");
+
+                                string variableName = buffer.substr(index + 1, wideSpaceIndex - index - 1);
+
+                                if (isKeyAvailable(fileName + currentFunction + variableName, variableMap) && isKeyAvailable(fileName + currentFunction + variableName, arrayMap))
+                                {
+
+                                    int stringStartIndex = buffer.find("\"");
+                                    int lastStringIndex = buffer.find_last_of("\"");
+
+                                    string stringData = buffer.substr(stringStartIndex + 1, lastStringIndex - stringStartIndex - 1);
+
+                                    if (IS_DEBUG_PRINT)
+                                    {
+                                        printf("String data: [%s]--\n", stringData.c_str());
+                                    }
+                                    int i = 0;
+                                    while (i < lastStringIndex - stringStartIndex - 1)
+                                    {
+                                        // printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
+                                        *(binaries + binaryIndex) = ((INS_LOAD | INS_R1) << 8) | stringData[i];
+                                        binaryIndex++;
+                                        *(binaries + binaryIndex) = ((INS_STORE | INS_DATA_ADDRESS | INS_R1) << 8) | variableMap[fileName + currentFunction + variableName] + i;
+                                        variableLineNumberMap[binaryIndex] = fileName + currentFunction + variableName;
+                                        binaryIndex++;
+                                        i++;
+                                    }
+                                    *(binaries + binaryIndex) = ((INS_LOAD | INS_R1) << 8);
+                                    binaryIndex++;
+                                    *(binaries + binaryIndex) = ((INS_STORE | INS_DATA_ADDRESS | INS_R1) << 8) | variableMap[fileName + currentFunction + variableName] + i;
+                                    variableLineNumberMap[binaryIndex] = fileName + currentFunction + variableName;
+                                    binaryIndex++;
+                                }
+                                else
+                                {
+                                    throw runtime_error("Variable not defined as an array");
+                                }
+                                if (IS_DEBUG_PRINT)
+                                {
+                                    printf("Variable found [%s]\n", variableName.c_str());
+                                }
+                            }
+                            // }
+                            // else
+                            // {
+                            //     throw runtime_error("Invalid string");
+                            // }
+
+                            break;
+                        }
+                        else
+                        {
+                            string s(1, program[i]);
+                            buffer += s;
+                        }
+                    }
+                    buffer.clear();
+                    continue;
+                }
+
+                if (buffer == "ACCESS")
+                {
                     buffer.clear();
                     while (1)
                     {
-                        if (program[++i] == '\n'){
-                            if(IS_DEBUG_PRINT){
+                        if (program[++i] == '\n')
+                        {
+                            if (IS_DEBUG_PRINT)
+                            {
                                 printf("File name found %s\n", buffer.c_str());
                             }
                             break;
-                           
-                        }else {
+                        }
+                        else
+                        {
                             string s(1, program[i]);
                             buffer += s;
                         }
@@ -316,7 +394,6 @@ public:
 
                     buffer.clear();
                     continue;
-                    
                 }
 
                 if (buffer == "CALL")
@@ -415,11 +492,15 @@ public:
                     continue;
                 }
 
-                
-                if(buffer == "DCLR"){
+                if (buffer == "DCLR")
+                {
                     // finding the function name
                     buffer.clear();
                     // string functionBuffer = "";
+
+                    if(IS_DEBUG_PRINT){
+                        printf("CURRENT FUNCTION NAME: --%s--\n", currentFunction.c_str());
+                    }
 
                     while (1)
                     {
@@ -429,7 +510,7 @@ public:
                             string v_name = buffer.substr(1, buffer.length() - 1);
                             int startIndex = v_name.find("[");
                             int endIndex = v_name.find("]");
-                            //printf("Vriable: %s start: %d, end : %d\n", v_name.c_str(), startIndex, endIndex);
+                            // printf("Vriable: %s start: %d, end : %d\n", v_name.c_str(), startIndex, endIndex);
 
                             if (startIndex != -1 && endIndex != -1)
                             {
@@ -439,20 +520,26 @@ public:
                                 {
                                     int size = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
                                     variableMap[fileName + currentFunction + v_name_without_arr] = variable_counter;
-                                    //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), v_name_without_arr.c_str(), binaryIndex, variable_counter);
+
+                                    // printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), v_name_without_arr.c_str(), binaryIndex, variable_counter);
                                     variable_counter += size;
-                                }else {
+                                    arrayMap[fileName + currentFunction + v_name_without_arr] = size;
+                                }
+                                else
+                                {
                                     throw runtime_error("Variable \"" + buffer + "\" Already declared");
                                 }
                             }
                             else if (!isKeyAvailable(fileName + currentFunction + buffer, variableMap))
                             {
-                                //printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
+                                // printf("Buffer: \"%s\" Variable \"%s\" = declared on line number %#x:  address will be offset by [%#x] \n", buffer.c_str(), buffer.substr(1, buffer.length() - 1).c_str(), binaryIndex, variable_counter);
                                 variableMap[fileName + currentFunction + v_name] = variable_counter++;
 
                                 // *(binaries + binaryIndex) = ((instructionMap["NOP"] | 0x10) << 8);
                                 // binaryIndex++;
-                            }else {
+                            }
+                            else
+                            {
                                 throw runtime_error("Variable \"" + buffer + "\" Already declared");
                             }
 
@@ -480,7 +567,7 @@ public:
                 else if (buffer.substr(0, 1) == "%")
                 {
                     middleData = buffer.substr(1, 3);
-                    //printf("Register found! R%c\n", buffer[2]);
+                    // printf("Register found! R%c\n", buffer[2]);
                     buffer.clear();
                 }
                 else if (buffer.substr(0, 1) == "[")
@@ -497,13 +584,17 @@ public:
                     int value = static_cast<int>(buffer[1]);
                     stringstream ss;
                     ss << hex << value;
-                    currentData =  "0x" +  ss.str();
+                    currentData = "0x" + ss.str();
                     buffer.clear();
                 }
-                
+
                 else if (program[i] == ':')
                 {
                     currentFunction = buffer;
+
+                    if(IS_DEBUG_PRINT){
+                        
+                    }
 
                     if (!isKeyAvailable(fileName + buffer, funtionMap))
                     {
@@ -516,15 +607,19 @@ public:
                         {
                             *(binaries + 1) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
                         }
-                        //printf("FUNCTION STARTED AND Address assigned: %s %#x\n", buffer.c_str(), static_cast<int>(binaryIndex));
+                        if (IS_DEBUG_PRINT)
+                        {
+                            printf("FUNCTION STARTED AND Address assigned: %s %#x\n", (fileName + buffer).c_str(), static_cast<int>(binaryIndex));
+                        }
 
                         functionStarted = true;
                     }
 
                     buffer.clear();
                 }
-                else if(buffer.substr(0, 1) == "$"){
-                    
+                else if (buffer.substr(0, 1) == "$")
+                {
+
                     string v_name = buffer.substr(1, buffer.length() - 1);
                     int startIndex = v_name.find("[");
                     int endIndex = v_name.find("]");
@@ -533,29 +628,38 @@ public:
                     {
                         string v_name_without_arr = v_name.substr(0, startIndex);
 
-                        //printf("Using array %s\n", v_name_without_arr.c_str());
+                        // printf("Using array %s\n", v_name_without_arr.c_str());
 
                         if (isKeyAvailable(fileName + currentFunction + v_name_without_arr, variableMap))
                         {
                             int index = stoi(v_name.substr(startIndex + 1, endIndex - startIndex - 1));
 
+                            if (index >= arrayMap[fileName + currentFunction + v_name_without_arr])
+                            {
+                                throw runtime_error("Index is out of range");
+                            }
+
                             currentAddress = to_string(variableMap[fileName + currentFunction + v_name_without_arr] + index);
-                            //printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
+                            // printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
                             variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name_without_arr;
-                        }else {
+                        }
+                        else
+                        {
                             throw runtime_error("Array not found \"" + v_name_without_arr + "\" not found");
                         }
                     }
                     else if (isKeyAvailable(fileName + currentFunction + v_name, variableMap))
                     {
                         currentAddress = to_string(variableMap[fileName + currentFunction + v_name]);
-                        variableLineNumberMap[binaryIndex] = fileName + currentFunction +   v_name;
+                        variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name;
                     }
                     else
                     {
                         throw runtime_error("Variable \"" + v_name + "\" not found");
                     }
-                }else{
+                }
+                else
+                {
                     currentInstruction = buffer;
                     middleData.clear();
                     currentData.clear();
@@ -572,17 +676,17 @@ public:
                 }
                 else if (!currentInstruction.empty() && !currentData.empty() && !middleData.empty())
                 {
-                    
-                    *(binaries + binaryIndex) = (instructionMap[currentInstruction] | getRegister(middleData[1])) << 8 |  (stoi(currentData, nullptr, 16));
+
+                    *(binaries + binaryIndex) = (instructionMap[currentInstruction] | getRegister(middleData[1])) << 8 | (stoi(currentData, nullptr, 16));
                     binaryIndex++;
-                    currentInstruction.clear(); 
+                    currentInstruction.clear();
                     middleData.clear();
                     currentData.clear();
                 }
                 else if (!currentInstruction.empty() && !currentAddress.empty() && !middleData.empty())
                 {
                     // //printf("Middledata %c", middleData[1]);
-                    *(binaries + binaryIndex) = (((instructionMap[currentInstruction] | INS_DATA_ADDRESS) | getRegister(middleData[1])) << 8)  | stoi(currentAddress, nullptr, 16);
+                    *(binaries + binaryIndex) = (((instructionMap[currentInstruction] | INS_DATA_ADDRESS) | getRegister(middleData[1])) << 8) | stoi(currentAddress, nullptr, 16);
                     binaryIndex++;
                     currentInstruction.clear();
                     middleData.clear();
@@ -630,18 +734,37 @@ public:
             buffer += s;
         }
 
+        for (auto &pair : variableMap)
+        {
+            printf("variables found:[%s]\n", pair.first.c_str());
+        }
 
         for (auto &pair : variableLineNumberMap)
         {
             uint16_t lineNumber = pair.first;
             uint16_t oldOffset = (*(binaries + lineNumber) & 0x00ff);
-            *(binaries + lineNumber) = (*(binaries + lineNumber ) & 0xff00) | ((oldOffset + binaryIndex + STACK_CAPACITY + 1));
+            if (isKeyAvailable(pair.second, arrayMap))
+            {
+                if (IS_DEBUG_PRINT)
+                {
+                    printf("ARRAY %s[%d] variableMap[%s]=[%d]\n", pair.second.c_str(), arrayMap[pair.second], pair.second.c_str(), variableMap[pair.second]);
+                }
+                if (arrayMap[pair.second] < oldOffset - variableMap[pair.second])
+                {
+
+                    //                    throw runtime_error("OUT OF RANGE ARRAY: " +  oldOffset + pair.second);
+                    if (IS_DEBUG_PRINT)
+                    {
+                        printf("OUT OF RANGE ARRAY: %s < %d \n", pair.second.c_str(), oldOffset);
+                    }
+                }
+            }
+            *(binaries + lineNumber) = (*(binaries + lineNumber) & 0xff00) | ((oldOffset + binaryIndex + STACK_CAPACITY + 1));
         }
 
+        int programSize = binaryIndex + variable_counter + STACK_CAPACITY;
 
-        int programSize =  binaryIndex + variable_counter + STACK_CAPACITY;
-
-        printf("Program size is  %d bytes (%f%%)\n",programSize,  (float)(programSize * 100) / RAM_SIZE);
+        printf("Program size is  %d bytes (%f%%)\n", programSize, (float)(programSize * 100) / RAM_SIZE);
 
         *(pLineCount) = ++binaryIndex;
 
@@ -680,11 +803,11 @@ public:
         {
 
             // //printf("Pointing to : %#x\n", static_cast<int>(PC));
-                
-                execute();
+
+            execute();
         }
 
-        //printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
+        // printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
     }
 
     void execute()
@@ -698,7 +821,7 @@ public:
         // scanf("\n%d", &a);
         // translateProgramAt(PC);
 
-        //running
+        // running
 
         switch (instruction)
         {
@@ -711,11 +834,11 @@ public:
             RAM[data] = RAM[data] - 1;
             break;
 
-        case INS_INC | INS_DATA_ADDRESS: 
+        case INS_INC | INS_DATA_ADDRESS:
             RAM[data] = RAM[data] + 1;
             break;
 
-        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R1: 
+        case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R1:
             R1 = data;
             break;
 
@@ -751,8 +874,7 @@ public:
             R3 = 0;
             break;
 
-
-        case INS_LOAD | INS_R1: 
+        case INS_LOAD | INS_R1:
             R1 = data;
             break;
 
@@ -800,7 +922,7 @@ public:
             R4 = RAM[RAM[data]];
             break;
 
-        case INS_JUMP | INS_DATA_ADDRESS: 
+        case INS_JUMP | INS_DATA_ADDRESS:
             PC = data;
             break;
 
@@ -818,33 +940,32 @@ public:
 
         case INS_ADD | INS_R2: // ADR1
             AC += R2;
-            
+
             break;
 
         case INS_ADD | INS_R3: // ADR1
             AC += R3;
-            
-            
+
             break;
         case INS_ADD | INS_R4: // ADR1
             AC += R4;
             break;
 
-        case INS_SUBTRACT | INS_R1:  //SBR1
+        case INS_SUBTRACT | INS_R1: // SBR1
             AC -= R1;
             break;
 
         case INS_SUBTRACT | INS_R2: // SBR2
 
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n",R2, AC);
+            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
             AC -= R2;
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n",R2, AC);
-            
+            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+
             break;
 
         case INS_SUBTRACT | INS_R3: // SBR3
             AC -= R3;
-            
+
             break;
 
         case INS_SUBTRACT | INS_R4: // SBR4
@@ -868,7 +989,10 @@ public:
             AC &= R1;
             break;
         case INS_AND | INS_R2: // SBR4
+            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
             AC &= R2;
+            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+
             break;
         case INS_AND | INS_R3: // SBR4
             AC &= R3;
@@ -881,10 +1005,10 @@ public:
             RAM[data] = RAM[data] << R1;
             break;
 
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2: 
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
             RAM[data] = RAM[data] << R2;
             break;
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3: 
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
             RAM[data] = RAM[data] << R3;
             break;
         case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
@@ -892,7 +1016,9 @@ public:
             break;
 
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-            RAM[data] = RAM[data] << R1;
+            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
+            RAM[data] = RAM[data] >> R1;
+            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
             break;
 
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
@@ -908,27 +1034,26 @@ public:
         case INS_CLEAR_ACC: // CLR
             AC = 0;
             flags[ZERO] = 1;
-            flags[NEGATIVE] =  0;
+            flags[NEGATIVE] = 0;
             flags[CARRY] = 0;
             break;
 
         case INS_COMP | INS_DATA_ADDRESS | INS_R1:
             flags[ZERO] = R1 == RAM[data];
             flags[NEGATIVE] = R1 > RAM[data];
-            printf("R1 = %#x, RAM[%#x]=%#x\n", R1,data, RAM[data]);
+            printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
             break;
 
         case INS_COMP | INS_DATA_ADDRESS | INS_R2:
             flags[ZERO] = R2 == RAM[data];
             flags[NEGATIVE] = R2 > RAM[data];
 
-           
             break;
 
         case INS_COMP | INS_DATA_ADDRESS | INS_R3:
             flags[ZERO] = R3 == RAM[data];
 
-            //printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
+            // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
             flags[NEGATIVE] = R3 > RAM[data];
             break;
         case INS_COMP | INS_DATA_ADDRESS | INS_R4:
@@ -980,7 +1105,7 @@ public:
                 check_overflow();
                 RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
             }
-        break;
+            break;
 
         case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
             if (flags[ZERO])
@@ -999,7 +1124,7 @@ public:
             break;
 
         default:
-            //printf("Invalid %#x instruction found\n", instruction);
+            // printf("Invalid %#x instruction found\n", instruction);
             break;
         }
     }
@@ -1009,7 +1134,7 @@ public:
         char x;
         char text[40];
         printf(
-            "system called with %d\t R1 = %#x\n",
+            "\nsystem called with %d\t R1 = %#x\n",
             static_cast<int>(IR & 0x00ff),
             static_cast<int>(R1));
 
@@ -1043,7 +1168,7 @@ public:
 
         case SYS_SCAN | SYS_STREAM:
         {
-           
+
             scanf("%39s", text);
 
             for (
@@ -1072,18 +1197,20 @@ public:
         }
     }
 
-    void check_overflow(){
-        if(SL > STACK_CAPACITY){
+    void check_overflow()
+    {
+        if (SL > STACK_CAPACITY)
+        {
             throw runtime_error("Stack overflowed....\n");
         }
     }
 
-    void initFlags(uint8_t register_value){
+    void initFlags(uint8_t register_value)
+    {
         flags[ZERO] = AC == 0;
         flags[NEGATIVE] = register_value > AC;
         // flags[CARRY] = result > 255;
     }
-
 };
 
 int main()
@@ -1097,7 +1224,8 @@ int main()
 
     int size = sizeof(programs) / sizeof(programs[0]);
 
-    for(int i=0; i<size; i++){
+    for (int i = 0; i < size; i++)
+    {
         printf("(%d). %s:\n", i + 1, programs[i].c_str());
     }
 
@@ -1106,7 +1234,7 @@ int main()
     scanf("%d", &x);
 
     cpu.loadProgram(programs[x - 1]);
-    
+
     int i;
     cin >> i;
     return 0;
