@@ -205,7 +205,7 @@ void execute()
         break;
 
     case INS_SUBTRACT | INS_R2: // SBR2
-
+        
         printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
         AC -= R2;
         printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);

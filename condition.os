@@ -1,41 +1,36 @@
-
-DCLR $choice
-DCLR $a_value
-DCLR $b_value
-
+dclr $choice
+dclr $a_value
+dclr $b_value
 
 print_a:
-    LOAD %R1 'A'
-    STORE %R1 $a_value
-    AOR %R1 $a_value
-    SYSCALL 0x00
-END
+    load %r1 'A'
+    store %r1 $a_value
+    aor %r1 $a_value
+    syscall 0x00
+end
 
 
 print_b:
-    LOAD %R1 'B'
-    STORE %R1 $b_value
-
-    AOR %R1 $b_value
-    SYSCALL 0x00
-END
-
+    load %r1 'B'
+    store %r1 $b_value
+    aor %r1 $b_value
+    syscall 0x00
+end
 
 take_input:
-    AOR %R1 $choice
-    SYSCALL 0x01
-END
-
+    aor %r1 $choice
+    syscall 0x01
+end
 
 _main:
-    CALL take_input
+    call take_input
 
-    LOAD %R2 '1'
-    COMP %R2 $choice
-    CALZ print_a
+    load %r2 '1'
+    comp %r2 $choice
+    calz print_a
 
-    LOAD %R2 '2'
-    COMP %R2 $choice
-    CALZ print_b
+    load %r2 '2'
+    comp %r2 $choice
+    calz print_b
 
-END
+end

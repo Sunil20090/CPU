@@ -34,7 +34,7 @@
 #define INS_R3 0x02
 #define INS_R4 0x03
 
-#define MAX_FILE_LENGTH 0xFF
+#define MAX_FILE_LENGTH 1000
 
 typedef struct CPU{
     uint8_t R1; // First Register
@@ -114,7 +114,8 @@ void tokenize(char* program, int programSize, Token* tokens,  int *tokenCount){
 
     int tokenIndex = 0;
 
-    for(int i=0; i < programSize; i++){
+    int i = 0;
+    while(i< programSize){
         while (program[i] == ' ')
         {
             i++;
@@ -160,20 +161,20 @@ void tokenize(char* program, int programSize, Token* tokens,  int *tokenCount){
             tokenIndex++;
             //printf("TOKEN: \"NEW LINE\" \tTYPE New Line\n");
         }
+        i++;
     }
 
     *(tokenCount) = tokenIndex;
 }
 
 void printToken(Token *tokens, int tokenCount)
-{
-    for (int i = 0; i < tokenCount; i++)
+{   int i = 0;
+    while(i < tokenCount)
+    //for (int i = 0; i < tokenCount; i++)
     {
-        printf("Token %d\n", i);
+        printf("[%d]=\t", i);
 
-        printf("Value : %s\n", tokens[i].value);
-
-        printf("Type  : ");
+        printf("%s \t{", tokens[i].value[0] == '\n' ? "newline" : tokens[i].value);
 
         switch (tokens[i].type)
         {
@@ -193,12 +194,17 @@ void printToken(Token *tokens, int tokenCount)
             printf("IDENTIFIER");
             break;
 
+        case TOKEN_TYPE_FORMATTER:
+            printf("FORMATTER");
+            break;
+
         default:
             printf("UNKNOWN");
             break;
         }
 
-        printf("\n\n");
+        printf("}\n\n");
+        i++;
     }
 }
 
@@ -215,8 +221,8 @@ void createTree(Node* root, Token* tokens, int tokenCount){
 
     Node* currentInstruction = NULL;
     Node* currentOperator = NULL;
-
-    for(int i=0; i<tokenCount; i++){
+    int i=0;
+    while(i<tokenCount){
 
         Token token = tokens[i];
 
@@ -248,33 +254,37 @@ void createTree(Node* root, Token* tokens, int tokenCount){
             currentInstruction = NULL;
             currentOperator = NULL;
         }
+        i++;
     }
 }
 
 void printTreeRecursive(Node *root, int depth)
 {
-
-    for (int i = 0; i < depth; i++)
+    int i = 0;
+     while (i < depth)
     {
         printf("\t");
+        i++;
     }
+   
 
     printf("%s\n", root->token.value);
-
-    for (int i = 0; i < root->childCount; i++)
+    i = 0;
+    while ( i < root->childCount)
     {
 
         printTreeRecursive(
             root->children[i],
             depth + 1);
+        i++;
     }
 }
 
-void printTree(Node *root)
-{
+    void printTree(Node *root)
+    {
 
-    printTreeRecursive(root, 0);
-}
+        printTreeRecursive(root, 0);
+    }
 
 
 int main()
@@ -283,7 +293,7 @@ int main()
     char program[MAX_FILE_LENGTH];
 
     int programSize;
-    loadProgram(program, "calc.os", &programSize);
+    loadProgram(program, "image.os", &programSize);
 
     printf("program: %s\n", program);
 
@@ -292,17 +302,20 @@ int main()
 
     tokenize(program, programSize, tokens, &tokenCount);
 
-    Token rootToken;
-    strcpy(rootToken.value, "start");
-    rootToken.type = TOKEN_TYPE_START;
+    printToken(tokens, tokenCount);
 
-    Node *rootNode = createNode(rootToken);
 
-    printf("Token count: %d\n", tokenCount);
+    // Token rootToken;
+    // strcpy(rootToken.value, "start");
+    // rootToken.type = TOKEN_TYPE_START;
 
-    createTree(rootNode, tokens, tokenCount);
+    // Node *rootNode = createNode(rootToken);
 
-    printTree(rootNode);
+    // printf("Token count: %d\n", tokenCount);
+
+    // createTree(rootNode, tokens, tokenCount);
+
+    // printTree(rootNode);
 
     return 0;
 }

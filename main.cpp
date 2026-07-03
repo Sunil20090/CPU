@@ -88,31 +88,31 @@ public:
     void initMap()
     {
         // mapping =
-        instructionMap["HLT"] = INS_HLT;
-        instructionMap["STORE"] = INS_STORE;
-        instructionMap["LOAD"] = INS_LOAD;
-        instructionMap["LFAD"] = INS_LOAD_OF_ADDRESS;
-        instructionMap["JUMP"] = INS_JUMP;
-        instructionMap["JUPZ"] = INS_JUMP_IF_ZERO;
-        instructionMap["JUPN"] = INS_JUMP_IF_LESS;
-        instructionMap["ADD"] = INS_ADD;
-        instructionMap["SUB"] = INS_SUBTRACT;
-        instructionMap["CLR"] = INS_CLEAR_ACC;
-        instructionMap["MOV"] = INS_MOVE;
-        instructionMap["PUSH"] = INS_PUSH;
-        instructionMap["PUSZ"] = INS_PUSH_IF_ZERO;
-        instructionMap["PUSN"] = INS_PUSH_IF_LESS;
-        instructionMap["POP"] = INS_POP;
-        instructionMap["NOP"] = INS_NOP;
-        instructionMap["AOR"] = INS_GET_ADDRESS;
-        instructionMap["INC"] = INS_INC;
-        instructionMap["DEC"] = INS_DEC;
-        instructionMap["SYSCALL"] = INS_SYSCALL;
-        instructionMap["COMP"] = INS_COMP;
-        instructionMap["OR"] = INS_OR;
-        instructionMap["AND"] = INS_AND;
-        instructionMap["LTS"] = INS_LEFT_SHIFT;
-        instructionMap["RTS"] = INS_RIGHT_SHIFT;
+        instructionMap["hlt"] = INS_HLT;
+        instructionMap["store"] = INS_STORE;
+        instructionMap["load"] = INS_LOAD;
+        instructionMap["lfad"] = INS_LOAD_OF_ADDRESS;
+        instructionMap["jump"] = INS_JUMP;
+        instructionMap["jupz"] = INS_JUMP_IF_ZERO;
+        instructionMap["jupn"] = INS_JUMP_IF_LESS;
+        instructionMap["add"] = INS_ADD;
+        instructionMap["sub"] = INS_SUBTRACT;
+        instructionMap["clr"] = INS_CLEAR_ACC;
+        instructionMap["mov"] = INS_MOVE;
+        instructionMap["push"] = INS_PUSH;
+        instructionMap["pusz"] = INS_PUSH_IF_ZERO;
+        instructionMap["pusn"] = INS_PUSH_IF_LESS;
+        instructionMap["pop"] = INS_POP;
+        instructionMap["nop"] = INS_NOP;
+        instructionMap["aor"] = INS_GET_ADDRESS;
+        instructionMap["inc"] = INS_INC;
+        instructionMap["dec"] = INS_DEC;
+        instructionMap["syscall"] = INS_SYSCALL;
+        instructionMap["comp"] = INS_COMP;
+        instructionMap["or"] = INS_OR;
+        instructionMap["and"] = INS_AND;
+        instructionMap["lts"] = INS_LEFT_SHIFT;
+        instructionMap["rts"] = INS_RIGHT_SHIFT;
     }
 
     void translateProgramAt(uint16_t i)
@@ -192,7 +192,7 @@ public:
 
         cout
             << "\n"
-            << "================Translated program ==========\n"
+            << "================ Translated program ==========\n"
             << endl;
 
         for (i = 0; i < lineCount; i++)
@@ -257,7 +257,7 @@ public:
         map<string, uint16_t> variableMap;
         map<string, uint16_t> arrayMap;
 
-        uint16_t *binaries = new uint16_t(100);
+        uint16_t *binaries = new uint16_t[300];
         uint16_t binaryIndex = 2;
 
         string buffer = "";
@@ -275,9 +275,7 @@ public:
         {
             if (program[i] == ';')
             {
-                while (program[++i] != '\n')
-                {
-                }
+                while (program[++i] != '\n');
             }
 
             if (program[i] == '\t')
@@ -288,7 +286,11 @@ public:
             if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
             {
 
-                if (buffer == "END")
+                if(IS_DEBUG_PRINT){
+                    //printf("buffer = [%s], \t\tprogram[i] = %c\t CI=[%s]\tCD=[%s]\tMD=[%s] \tAD=[%s]\n", buffer.c_str(), program[i] == '\n' ? 'N' : program[i] == ' ' ? 'S': program[i], currentInstruction.c_str(), currentData.c_str(), middleData.c_str(), currentAddress.c_str());
+                }
+
+                if (buffer == "end")
                 {
                     functionStarted = false;
                     currentFunction = "";
@@ -297,18 +299,19 @@ public:
                     continue;
                 }
 
-                if (buffer == "SAVE")
+                if (buffer == "save")
                 {
                     buffer.clear();
 
                     while (1)
                     {
-
                         if (program[++i] == '\n')
                         {
-                            // if (buffer.substr(0, 1) == "\"" && buffer.substr(buffer.length() - 1, 1) == "\"")
-                            // {
-                            if (IS_DEBUG_PRINT)
+                            if(IS_DEBUG_PRINT){
+                                printf("[buffer]=[%s]\n", buffer.c_str());
+                            }
+
+                            if (buffer.substr(0, 1) == "\"" && buffer.substr(buffer.length() - 1, 1) == "\"")
                             {
 
                                 int index = buffer.find("$");
@@ -354,11 +357,11 @@ public:
                                     printf("Variable found [%s]\n", variableName.c_str());
                                 }
                             }
-                            // }
-                            // else
-                            // {
-                            //     throw runtime_error("Invalid string");
-                            // }
+                            
+                            else
+                            {
+                                throw runtime_error("Invalid string");
+                            }
 
                             break;
                         }
@@ -372,7 +375,7 @@ public:
                     continue;
                 }
 
-                if (buffer == "ACCESS")
+                if (buffer == "access")
                 {
                     buffer.clear();
                     while (1)
@@ -396,7 +399,7 @@ public:
                     continue;
                 }
 
-                if (buffer == "CALL")
+                if (buffer == "call")
                 {
                     // finding the function name
                     buffer.clear();
@@ -404,14 +407,17 @@ public:
 
                     while (1)
                     {
-                        // cout << "char: \"" << program[i+1] << "\"" << endl;
+                        if(IS_DEBUG_PRINT){
+                            cout << "char: \"" << program[i+1] << "\"" << endl;
+                        }
+                        
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
                                 throw runtime_error("CALL Function \"" + fileName + buffer + "\" Not found");
                             }
-                            // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
+                          
                             *(binaries + binaryIndex) = ((INS_PUSH | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -424,11 +430,11 @@ public:
                         }
                     }
 
-                    buffer.clear();
+                    // buffer.clear();
                     continue;
                 }
 
-                if (buffer == "CALZ")
+                if (buffer == "calz")
                 {
                     // finding the function name
                     buffer.clear();
@@ -436,14 +442,17 @@ public:
 
                     while (1)
                     {
-                        // cout << "char: \"" << program[i+1] << "\"" << endl;
+                        if(IS_DEBUG_PRINT){
+                            cout << "char: \"" << program[i + 1] << "\"" << endl;
+                        }
+                        
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
                                 throw runtime_error("CALLZ Function \"" + fileName + buffer + "\" Not found");
                             }
-                            // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
+                            
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_ZERO | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP_IF_ZERO | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -460,7 +469,7 @@ public:
                     continue;
                 }
 
-                if (buffer == "CALN")
+                if (buffer == "caln")
                 {
                     // finding the function name
                     buffer.clear();
@@ -468,14 +477,14 @@ public:
 
                     while (1)
                     {
-                        // cout << "char: \"" << program[i+1] << "\"" << endl;
+                       
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
-                                throw runtime_error("CALLNFunction \"" + buffer + "\" Not found");
+                                throw runtime_error("CALN Function \"" + buffer + "\" Not found");
                             }
-                            // cout << "JUMP Found function name: \"" << buffer << "\"" << endl;
+                           
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_LESS | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP_IF_LESS | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -492,7 +501,7 @@ public:
                     continue;
                 }
 
-                if (buffer == "DCLR")
+                if (buffer == "dclr")
                 {
                     // finding the function name
                     buffer.clear();
@@ -592,10 +601,6 @@ public:
                 {
                     currentFunction = buffer;
 
-                    if(IS_DEBUG_PRINT){
-                        
-                    }
-
                     if (!isKeyAvailable(fileName + buffer, funtionMap))
                     {
                         if (functionStarted)
@@ -660,7 +665,13 @@ public:
                 }
                 else
                 {
+                    
                     currentInstruction = buffer;
+                    if (IS_DEBUG_PRINT)
+                    {
+                        // printf("I am in else instruction \"%s, buffer = \"%s\n", currentInstruction.c_str(), buffer.c_str());
+                    }
+
                     middleData.clear();
                     currentData.clear();
                     currentAddress.clear();
@@ -736,7 +747,9 @@ public:
 
         for (auto &pair : variableMap)
         {
-            printf("variables found:[%s]\n", pair.first.c_str());
+            if(IS_DEBUG_PRINT){
+                printf("variables found:[%s]\n", pair.first.c_str());
+            }
         }
 
         for (auto &pair : variableLineNumberMap)
@@ -750,13 +763,12 @@ public:
                     printf("ARRAY %s[%d] variableMap[%s]=[%d]\n", pair.second.c_str(), arrayMap[pair.second], pair.second.c_str(), variableMap[pair.second]);
                 }
                 if (arrayMap[pair.second] < oldOffset - variableMap[pair.second])
-                {
-
-                    //                    throw runtime_error("OUT OF RANGE ARRAY: " +  oldOffset + pair.second);
+                {                   
                     if (IS_DEBUG_PRINT)
                     {
-                        printf("OUT OF RANGE ARRAY: %s < %d \n", pair.second.c_str(), oldOffset);
+                        printf("OUT OF RANGE ARRAY: %s < %d \n", pair.second.c_str(), oldOffset - variableMap[pair.second]);
                     }
+                    throw runtime_error("OUT OF RANGE ARRAY: " + oldOffset + pair.second);
                 }
             }
             *(binaries + lineNumber) = (*(binaries + lineNumber) & 0xff00) | ((oldOffset + binaryIndex + STACK_CAPACITY + 1));
@@ -836,6 +848,38 @@ public:
 
         case INS_INC | INS_DATA_ADDRESS:
             RAM[data] = RAM[data] + 1;
+            break;
+
+        case INS_INC | INS_R1:
+            R1 += 1; 
+            break;
+
+        case INS_INC | INS_R2:
+            R2 += 1;
+            break;
+
+        case INS_INC | INS_R3:
+            R3 += 1;
+            break;
+
+        case INS_INC | INS_R4:
+            R4 += 1;
+            break;
+
+        case INS_DEC | INS_R1:
+            R1 -= 1;
+            break;
+
+        case INS_DEC | INS_R2:
+            R2 -= 1;
+            break;
+
+        case INS_DEC | INS_R3:
+            R3 -= 1;
+            break;
+
+        case INS_DEC | INS_R4:
+            R4 -= 1;
             break;
 
         case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R1:
@@ -951,198 +995,225 @@ public:
             AC += R4;
             break;
 
+        case INS_ADD | INS_DATA_ADDRESS: 
+            AC += RAM[data];
+            if(IS_DEBUG_PRINT){
+                printf("adding address..AC += RAM[%#x] (%#x)\n", data, RAM[data]);
+            }
+            break;
+
+        case INS_SUBTRACT | INS_DATA_ADDRESS: 
+            AC -= RAM[data];
+            break;
+
         case INS_SUBTRACT | INS_R1: // SBR1
             AC -= R1;
             break;
 
         case INS_SUBTRACT | INS_R2: // SBR2
+            if(IS_DEBUG_PRINT){
 
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+            }
             AC -= R2;
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-
-            break;
-
-        case INS_SUBTRACT | INS_R3: // SBR3
-            AC -= R3;
-
-            break;
-
-        case INS_SUBTRACT | INS_R4: // SBR4
-            AC -= R4;
-            break;
-
-        case INS_OR | INS_R1: // SBR4
-            AC |= R1;
-            break;
-        case INS_OR | INS_R2: // SBR4
-            AC |= R2;
-            break;
-        case INS_OR | INS_R3: // SBR4
-            AC |= R3;
-            break;
-        case INS_OR | INS_R4: // SBR4
-            AC |= R4;
-            break;
-
-        case INS_AND | INS_R1: // SBR4
-            AC &= R1;
-            break;
-        case INS_AND | INS_R2: // SBR4
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-            AC &= R2;
-            printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-
-            break;
-        case INS_AND | INS_R3: // SBR4
-            AC &= R3;
-            break;
-        case INS_AND | INS_R4: // SBR4
-            AC &= R4;
-            break;
-
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-            RAM[data] = RAM[data] << R1;
-            break;
-
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-            RAM[data] = RAM[data] << R2;
-            break;
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-            RAM[data] = RAM[data] << R3;
-            break;
-        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-            RAM[data] = RAM[data] << R4;
-            break;
-
-        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-            RAM[data] = RAM[data] >> R1;
-            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-            break;
-
-        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-            RAM[data] = RAM[data] >> R2;
-            break;
-        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-            RAM[data] = RAM[data] >> R3;
-            break;
-        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-            RAM[data] = RAM[data] >> R4;
-            break;
-
-        case INS_CLEAR_ACC: // CLR
-            AC = 0;
-            flags[ZERO] = 1;
-            flags[NEGATIVE] = 0;
-            flags[CARRY] = 0;
-            break;
-
-        case INS_COMP | INS_DATA_ADDRESS | INS_R1:
-            flags[ZERO] = R1 == RAM[data];
-            flags[NEGATIVE] = R1 > RAM[data];
-            printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
-            break;
-
-        case INS_COMP | INS_DATA_ADDRESS | INS_R2:
-            flags[ZERO] = R2 == RAM[data];
-            flags[NEGATIVE] = R2 > RAM[data];
-
-            break;
-
-        case INS_COMP | INS_DATA_ADDRESS | INS_R3:
-            flags[ZERO] = R3 == RAM[data];
-
-            // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
-            flags[NEGATIVE] = R3 > RAM[data];
-            break;
-        case INS_COMP | INS_DATA_ADDRESS | INS_R4:
-            flags[ZERO] = R4 == RAM[data];
-            flags[NEGATIVE] = R4 > RAM[data];
-            break;
-
-        case INS_COMP | INS_R1:
-            flags[ZERO] = R1 == data;
-            flags[NEGATIVE] = R1 > data;
-            break;
-
-        case INS_COMP | INS_R2:
-            flags[ZERO] = R2 == data;
-            flags[NEGATIVE] = R2 > data;
-            break;
-
-        case INS_COMP | INS_R3:
-            flags[ZERO] = R3 == data;
-            flags[NEGATIVE] = R3 > data;
-            break;
-        case INS_COMP | INS_R4:
-            flags[ZERO] = R4 == data;
-            flags[NEGATIVE] = R4 > data;
-            break;
-
-        case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
-            RAM[data] = 0;
-            break;
-
-        case INS_MOVE | INS_DATA_ADDRESS:
-            RAM[data] = AC;
-            break;
-
-        case INS_NOP: // NOP
-
-            break;
-
-        case INS_PUSH | INS_DATA_ADDRESS: // PUSH
-            SL++;
-            check_overflow();
-            RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
-            break;
-
-        case INS_PUSH_IF_LESS | INS_DATA_ADDRESS:
-            if (flags[NEGATIVE])
+            if (IS_DEBUG_PRINT)
             {
-                SL++;
-                check_overflow();
-                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
-            }
-            break;
-
-        case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
-            if (flags[ZERO])
-            {
-                SL++;
-                check_overflow();
-                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
             }
 
             break;
 
-        case INS_POP: // POP
-            PC = SP + SL - 1;
-            SL--;
+            case INS_SUBTRACT | INS_R3: // SBR3
+                AC -= R3;
 
-            break;
+                break;
 
-        default:
-            // printf("Invalid %#x instruction found\n", instruction);
-            break;
-        }
+            case INS_SUBTRACT | INS_R4: // SBR4
+                AC -= R4;
+                break;
+
+            case INS_OR | INS_R1: // SBR4
+                AC |= R1;
+                break;
+            case INS_OR | INS_R2: // SBR4
+                AC |= R2;
+                break;
+            case INS_OR | INS_R3: // SBR4
+                AC |= R3;
+                break;
+            case INS_OR | INS_R4: // SBR4
+                AC |= R4;
+                break;
+
+            case INS_AND | INS_R1: // SBR4
+                AC &= R1;
+                break;
+            case INS_AND | INS_R2: // SBR4
+                if(IS_DEBUG_PRINT){
+                    printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+                }
+                AC &= R2;
+                if(IS_DEBUG_PRINT){
+                    printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+                }
+
+                break;
+            case INS_AND | INS_R3: // SBR4
+                AC &= R3;
+                break;
+            case INS_AND | INS_R4: // SBR4
+                AC &= R4;
+                break;
+
+            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R1:
+                RAM[data] = RAM[data] << R1;
+                break;
+
+            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
+                RAM[data] = RAM[data] << R2;
+                break;
+            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
+                RAM[data] = RAM[data] << R3;
+                break;
+            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
+                RAM[data] = RAM[data] << R4;
+                break;
+
+            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
+                printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
+                RAM[data] = RAM[data] >> R1;
+                printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
+                break;
+
+            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
+                RAM[data] = RAM[data] >> R2;
+                break;
+            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R3:
+                RAM[data] = RAM[data] >> R3;
+                break;
+            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R4:
+                RAM[data] = RAM[data] >> R4;
+                break;
+
+            case INS_CLEAR_ACC: // CLR
+                AC = 0;
+                flags[ZERO] = 1;
+                flags[NEGATIVE] = 0;
+                flags[CARRY] = 0;
+                break;
+
+            case INS_COMP | INS_DATA_ADDRESS | INS_R1:
+                flags[ZERO] = R1 == RAM[data];
+                flags[NEGATIVE] = R1 > RAM[data];
+                if (IS_DEBUG_PRINT)
+                {
+                    printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
+                }
+                break;
+
+            case INS_COMP | INS_DATA_ADDRESS | INS_R2:
+                flags[ZERO] = R2 == RAM[data];
+                flags[NEGATIVE] = R2 > RAM[data];
+
+                break;
+
+            case INS_COMP | INS_DATA_ADDRESS | INS_R3:
+                flags[ZERO] = R3 == RAM[data];
+
+                // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
+                flags[NEGATIVE] = R3 > RAM[data];
+                break;
+            case INS_COMP | INS_DATA_ADDRESS | INS_R4:
+                flags[ZERO] = R4 == RAM[data];
+                flags[NEGATIVE] = R4 > RAM[data];
+                break;
+
+            case INS_COMP | INS_R1:
+                flags[ZERO] = R1 == data;
+                flags[NEGATIVE] = R1 > data;
+                printf("Comparing: \t %#x > %#x\n", R1, data);
+                break;
+
+            case INS_COMP | INS_R2:
+                flags[ZERO] = R2 == data;
+                flags[NEGATIVE] = R2 > data;
+                break;
+
+            case INS_COMP | INS_R3:
+                flags[ZERO] = R3 == data;
+                flags[NEGATIVE] = R3 > data;
+                break;
+            case INS_COMP | INS_R4:
+                flags[ZERO] = R4 == data;
+                flags[NEGATIVE] = R4 > data;
+                break;
+
+            case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
+                RAM[data] = 0;
+                break;
+
+            case INS_MOVE | INS_DATA_ADDRESS:
+                RAM[data] = AC;
+                break;
+
+            case INS_NOP: // NOP
+
+                break;
+
+            case INS_PUSH | INS_DATA_ADDRESS: // PUSH
+                SL++;
+                check_overflow();
+                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+                break;
+
+            case INS_PUSH_IF_LESS | INS_DATA_ADDRESS:
+                if (flags[NEGATIVE])
+                {
+                    SL++;
+                    check_overflow();
+                    RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+                }
+                break;
+
+            case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
+                if (flags[ZERO])
+                {
+                    SL++;
+                    check_overflow();
+                    RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+                }
+
+                break;
+
+            case INS_POP: // POP
+                PC = SP + SL - 1;
+                SL--;
+
+                break;
+
+            default:
+                // printf("Invalid %#x instruction found\n", instruction);
+                break;
+            }
     }
 
     void systemCall()
     {
         char x;
         char text[40];
-        printf(
-            "\nsystem called with %d\t R1 = %#x\n",
-            static_cast<int>(IR & 0x00ff),
-            static_cast<int>(R1));
+        if(IS_DEBUG_PRINT){
+            printf(
+                "\nsystem called with %d\t R1 = %#x\n",
+                static_cast<int>(IR & 0x00ff),
+                static_cast<int>(R1));
+        }
+       
 
         switch (IR & 0x00ff)
         {
         case SYS_PRINT:
         {
-            printf("%c", RAM[R1]);
+            printf("{%c}\n", RAM[R1]);
             break;
         }
 

@@ -1,7 +1,7 @@
 _main:
-    DCLR $a
-    LOAD %R1 0x09
-    STORE %R1 $a
+    dclr $a
+    load %R1 0x09
+    store %R1 $a
 
     DCLR $b
     LOAD %R1 0x04
