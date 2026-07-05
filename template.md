@@ -442,7 +442,6 @@ UART
 
 
 ```wavedrom
-{ signal: [
   { name: "CLK",  wave: "P......."},
   { name: "DATA", wave: "x.1010x."}
 ]}

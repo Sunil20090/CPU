@@ -115,6 +115,31 @@ public:
         instructionMap["rts"] = INS_RIGHT_SHIFT;
     }
 
+    void saveProgram(uint8_t limit)
+    {
+
+        std::ofstream file("output.txt");
+
+        if (!file)
+        {
+            std::cout << "Failed to open file.\n";
+            return;
+        }
+
+        file << "uint16_t program[] = {\n";
+        for (int address = 0; address <= limit; ++address)
+        {
+            file << "0x" << hex << RAM[address] << ",\n";
+            // printf("%#x, \n", RAM[address]);
+        }
+        // printf("]");
+        file << "};";
+
+        file.close(); // Optional (automatically called when file goes out of scope)
+
+        std::cout << "File written successfully.\n";
+    }
+
     void translateProgramAt(uint16_t i)
     {
         uint8_t instruction = ((RAM[i] >> 10) & 0x00ff) << 2;
@@ -213,11 +238,11 @@ public:
         {
             cout << "Reading finished" << endl;
         }
-
+        saveProgram(lineCount);
         run();
         if (IS_DEBUG_PRINT)
         {
-            showMemory(0x00, 0xFF);
+            showShareableProgramm(0x00, lineCount + STACK_CAPACITY + 0x20);
         }
     }
 
@@ -256,6 +281,7 @@ public:
         map<string, uint16_t> funtionMap;
         map<string, uint16_t> variableMap;
         map<string, uint16_t> arrayMap;
+        map<string, string> staticVarMap;
 
         uint16_t *binaries = new uint16_t[300];
         uint16_t binaryIndex = 2;
@@ -275,7 +301,8 @@ public:
         {
             if (program[i] == ';')
             {
-                while (program[++i] != '\n');
+                while (program[++i] != '\n')
+                    ;
             }
 
             if (program[i] == '\t')
@@ -286,8 +313,9 @@ public:
             if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
             {
 
-                if(IS_DEBUG_PRINT){
-                    //printf("buffer = [%s], \t\tprogram[i] = %c\t CI=[%s]\tCD=[%s]\tMD=[%s] \tAD=[%s]\n", buffer.c_str(), program[i] == '\n' ? 'N' : program[i] == ' ' ? 'S': program[i], currentInstruction.c_str(), currentData.c_str(), middleData.c_str(), currentAddress.c_str());
+                if (IS_DEBUG_PRINT)
+                {
+                    // printf("buffer = [%s], \t\tprogram[i] = %c\t CI=[%s]\tCD=[%s]\tMD=[%s] \tAD=[%s]\n", buffer.c_str(), program[i] == '\n' ? 'N' : program[i] == ' ' ? 'S': program[i], currentInstruction.c_str(), currentData.c_str(), middleData.c_str(), currentAddress.c_str());
                 }
 
                 if (buffer == "end")
@@ -299,6 +327,55 @@ public:
                     continue;
                 }
 
+                if (buffer == "define")
+                {
+                    // finding the function name
+                    buffer.clear();
+                    // string functionBuffer = "";
+
+                    while (1)
+                    {
+                        if (IS_DEBUG_PRINT)
+                        {
+                            cout << "char: \"" << program[i + 1] << "\"" << endl;
+                        }
+
+                        if (program[++i] == '\n')
+                        {
+
+                            if (IS_DEBUG_PRINT)
+                            {
+                                printf("defined buffer found %s", buffer.c_str());
+                            }
+
+                            if (isKeyAvailable(fileName + buffer, staticVarMap))
+                            {
+                                throw runtime_error("Already defined \"" + fileName + buffer + "\" ");
+                            }
+
+                            int index = buffer.find("$");
+                            int wideSpaceIndex = buffer.find(" ");
+                            int newLineIndex = buffer.find("\n");
+
+                            string variableName = buffer.substr(index + 1, wideSpaceIndex - index - 1);
+
+                            string value = buffer.substr(wideSpaceIndex + 1, newLineIndex - wideSpaceIndex);
+
+                            printf("variable name %s and value : %s\" [%x]\n", variableName.c_str(), value.c_str(), stoi(value, nullptr, 16));
+                            staticVarMap[fileName + variableName] = value;
+                            break;
+                        }
+                        else
+                        {
+                            string s(1, program[i]);
+                            buffer += s;
+                        }
+                    }
+
+                    buffer.clear();
+                    continue;
+                }
+
                 if (buffer == "save")
                 {
                     buffer.clear();
@@ -307,7 +384,8 @@ public:
                     {
                         if (program[++i] == '\n')
                         {
-                            if(IS_DEBUG_PRINT){
+                            if (IS_DEBUG_PRINT)
+                            {
                                 printf("[buffer]=[%s]\n", buffer.c_str());
                             }
 
@@ -357,7 +435,7 @@ public:
                                     printf("Variable found [%s]\n", variableName.c_str());
                                 }
                             }
-                            
+
                             else
                             {
                                 throw runtime_error("Invalid string");
@@ -407,17 +485,18 @@ public:
 
                     while (1)
                     {
-                        if(IS_DEBUG_PRINT){
-                            cout << "char: \"" << program[i+1] << "\"" << endl;
+                        if (IS_DEBUG_PRINT)
+                        {
+                            cout << "char: \"" << program[i + 1] << "\"" << endl;
                         }
-                        
+
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
                                 throw runtime_error("CALL Function \"" + fileName + buffer + "\" Not found");
                             }
-                          
+
                             *(binaries + binaryIndex) = ((INS_PUSH | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -442,17 +521,18 @@ public:
 
                     while (1)
                     {
-                        if(IS_DEBUG_PRINT){
+                        if (IS_DEBUG_PRINT)
+                        {
                             cout << "char: \"" << program[i + 1] << "\"" << endl;
                         }
-                        
+
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
                                 throw runtime_error("CALLZ Function \"" + fileName + buffer + "\" Not found");
                             }
-                            
+
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_ZERO | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP_IF_ZERO | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -477,14 +557,14 @@ public:
 
                     while (1)
                     {
-                       
+
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
                             {
                                 throw runtime_error("CALN Function \"" + buffer + "\" Not found");
                             }
-                           
+
                             *(binaries + binaryIndex) = ((INS_PUSH_IF_LESS | INS_DATA_ADDRESS) << 8) | binaryIndex + 2;
                             binaryIndex++;
                             *(binaries + binaryIndex++) = ((INS_JUMP_IF_LESS | INS_DATA_ADDRESS) << 8) | funtionMap[fileName + buffer];
@@ -507,7 +587,8 @@ public:
                     buffer.clear();
                     // string functionBuffer = "";
 
-                    if(IS_DEBUG_PRINT){
+                    if (IS_DEBUG_PRINT)
+                    {
                         printf("CURRENT FUNCTION NAME: --%s--\n", currentFunction.c_str());
                     }
 
@@ -572,6 +653,11 @@ public:
                 if (buffer.substr(0, 2) == "0x" || buffer.substr(0, 2) == "0X")
                 {
                     currentData = buffer.substr(2, buffer.length() - 1);
+                }
+                else if (buffer.substr(0, 1) == "#")
+                {
+                    // string decimal = buffer.substr(1, buffer.length() - 1);
+                    // sprintf(currentData, "%x", stoi(decimal));
                 }
                 else if (buffer.substr(0, 1) == "%")
                 {
@@ -653,6 +739,10 @@ public:
                             throw runtime_error("Array not found \"" + v_name_without_arr + "\" not found");
                         }
                     }
+                    else if (isKeyAvailable(fileName + v_name, staticVarMap))
+                    {
+                        currentData = staticVarMap[fileName + v_name];
+                    }
                     else if (isKeyAvailable(fileName + currentFunction + v_name, variableMap))
                     {
                         currentAddress = to_string(variableMap[fileName + currentFunction + v_name]);
@@ -665,7 +755,7 @@ public:
                 }
                 else
                 {
-                    
+
                     currentInstruction = buffer;
                     if (IS_DEBUG_PRINT)
                     {
@@ -747,7 +837,8 @@ public:
 
         for (auto &pair : variableMap)
         {
-            if(IS_DEBUG_PRINT){
+            if (IS_DEBUG_PRINT)
+            {
                 printf("variables found:[%s]\n", pair.first.c_str());
             }
         }
@@ -763,7 +854,7 @@ public:
                     printf("ARRAY %s[%d] variableMap[%s]=[%d]\n", pair.second.c_str(), arrayMap[pair.second], pair.second.c_str(), variableMap[pair.second]);
                 }
                 if (arrayMap[pair.second] < oldOffset - variableMap[pair.second])
-                {                   
+                {
                     if (IS_DEBUG_PRINT)
                     {
                         printf("OUT OF RANGE ARRAY: %s < %d \n", pair.second.c_str(), oldOffset - variableMap[pair.second]);
@@ -851,7 +942,7 @@ public:
             break;
 
         case INS_INC | INS_R1:
-            R1 += 1; 
+            R1 += 1;
             break;
 
         case INS_INC | INS_R2:
@@ -995,14 +1086,15 @@ public:
             AC += R4;
             break;
 
-        case INS_ADD | INS_DATA_ADDRESS: 
+        case INS_ADD | INS_DATA_ADDRESS:
             AC += RAM[data];
-            if(IS_DEBUG_PRINT){
+            if (IS_DEBUG_PRINT)
+            {
                 printf("adding address..AC += RAM[%#x] (%#x)\n", data, RAM[data]);
             }
             break;
 
-        case INS_SUBTRACT | INS_DATA_ADDRESS: 
+        case INS_SUBTRACT | INS_DATA_ADDRESS:
             AC -= RAM[data];
             break;
 
@@ -1011,7 +1103,8 @@ public:
             break;
 
         case INS_SUBTRACT | INS_R2: // SBR2
-            if(IS_DEBUG_PRINT){
+            if (IS_DEBUG_PRINT)
+            {
 
                 printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
             }
@@ -1023,191 +1116,193 @@ public:
 
             break;
 
-            case INS_SUBTRACT | INS_R3: // SBR3
-                AC -= R3;
+        case INS_SUBTRACT | INS_R3: // SBR3
+            AC -= R3;
 
-                break;
+            break;
 
-            case INS_SUBTRACT | INS_R4: // SBR4
-                AC -= R4;
-                break;
+        case INS_SUBTRACT | INS_R4: // SBR4
+            AC -= R4;
+            break;
 
-            case INS_OR | INS_R1: // SBR4
-                AC |= R1;
-                break;
-            case INS_OR | INS_R2: // SBR4
-                AC |= R2;
-                break;
-            case INS_OR | INS_R3: // SBR4
-                AC |= R3;
-                break;
-            case INS_OR | INS_R4: // SBR4
-                AC |= R4;
-                break;
+        case INS_OR | INS_R1: // SBR4
+            AC |= R1;
+            break;
+        case INS_OR | INS_R2: // SBR4
+            AC |= R2;
+            break;
+        case INS_OR | INS_R3: // SBR4
+            AC |= R3;
+            break;
+        case INS_OR | INS_R4: // SBR4
+            AC |= R4;
+            break;
 
-            case INS_AND | INS_R1: // SBR4
-                AC &= R1;
-                break;
-            case INS_AND | INS_R2: // SBR4
-                if(IS_DEBUG_PRINT){
-                    printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-                }
-                AC &= R2;
-                if(IS_DEBUG_PRINT){
-                    printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-                }
+        case INS_AND | INS_R1: // SBR4
+            AC &= R1;
+            break;
+        case INS_AND | INS_R2: // SBR4
+            if (IS_DEBUG_PRINT)
+            {
+                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+            }
+            AC &= R2;
+            if (IS_DEBUG_PRINT)
+            {
+                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
+            }
 
-                break;
-            case INS_AND | INS_R3: // SBR4
-                AC &= R3;
-                break;
-            case INS_AND | INS_R4: // SBR4
-                AC &= R4;
-                break;
+            break;
+        case INS_AND | INS_R3: // SBR4
+            AC &= R3;
+            break;
+        case INS_AND | INS_R4: // SBR4
+            AC &= R4;
+            break;
 
-            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-                RAM[data] = RAM[data] << R1;
-                break;
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R1:
+            RAM[data] = RAM[data] << R1;
+            break;
 
-            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-                RAM[data] = RAM[data] << R2;
-                break;
-            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-                RAM[data] = RAM[data] << R3;
-                break;
-            case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-                RAM[data] = RAM[data] << R4;
-                break;
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
+            RAM[data] = RAM[data] << R2;
+            break;
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
+            RAM[data] = RAM[data] << R3;
+            break;
+        case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
+            RAM[data] = RAM[data] << R4;
+            break;
 
-            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-                printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-                RAM[data] = RAM[data] >> R1;
-                printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-                break;
+        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
+            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
+            RAM[data] = RAM[data] >> R1;
+            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
+            break;
 
-            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-                RAM[data] = RAM[data] >> R2;
-                break;
-            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-                RAM[data] = RAM[data] >> R3;
-                break;
-            case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-                RAM[data] = RAM[data] >> R4;
-                break;
+        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
+            RAM[data] = RAM[data] >> R2;
+            break;
+        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R3:
+            RAM[data] = RAM[data] >> R3;
+            break;
+        case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R4:
+            RAM[data] = RAM[data] >> R4;
+            break;
 
-            case INS_CLEAR_ACC: // CLR
-                AC = 0;
-                flags[ZERO] = 1;
-                flags[NEGATIVE] = 0;
-                flags[CARRY] = 0;
-                break;
+        case INS_CLEAR_ACC: // CLR
+            AC = 0;
+            flags[ZERO] = 1;
+            flags[NEGATIVE] = 0;
+            flags[CARRY] = 0;
+            break;
 
-            case INS_COMP | INS_DATA_ADDRESS | INS_R1:
-                flags[ZERO] = R1 == RAM[data];
-                flags[NEGATIVE] = R1 > RAM[data];
-                if (IS_DEBUG_PRINT)
-                {
-                    printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
-                }
-                break;
+        case INS_COMP | INS_DATA_ADDRESS | INS_R1:
+            flags[ZERO] = R1 == RAM[data];
+            flags[NEGATIVE] = R1 > RAM[data];
+            if (IS_DEBUG_PRINT)
+            {
+                printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
+            }
+            break;
 
-            case INS_COMP | INS_DATA_ADDRESS | INS_R2:
-                flags[ZERO] = R2 == RAM[data];
-                flags[NEGATIVE] = R2 > RAM[data];
+        case INS_COMP | INS_DATA_ADDRESS | INS_R2:
+            flags[ZERO] = R2 == RAM[data];
+            flags[NEGATIVE] = R2 > RAM[data];
 
-                break;
+            break;
 
-            case INS_COMP | INS_DATA_ADDRESS | INS_R3:
-                flags[ZERO] = R3 == RAM[data];
+        case INS_COMP | INS_DATA_ADDRESS | INS_R3:
+            flags[ZERO] = R3 == RAM[data];
 
-                // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
-                flags[NEGATIVE] = R3 > RAM[data];
-                break;
-            case INS_COMP | INS_DATA_ADDRESS | INS_R4:
-                flags[ZERO] = R4 == RAM[data];
-                flags[NEGATIVE] = R4 > RAM[data];
-                break;
+            // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
+            flags[NEGATIVE] = R3 > RAM[data];
+            break;
+        case INS_COMP | INS_DATA_ADDRESS | INS_R4:
+            flags[ZERO] = R4 == RAM[data];
+            flags[NEGATIVE] = R4 > RAM[data];
+            break;
 
-            case INS_COMP | INS_R1:
-                flags[ZERO] = R1 == data;
-                flags[NEGATIVE] = R1 > data;
-                printf("Comparing: \t %#x > %#x\n", R1, data);
-                break;
+        case INS_COMP | INS_R1:
+            flags[ZERO] = R1 == data;
+            flags[NEGATIVE] = R1 > data;
+            printf("Comparing: \t %#x > %#x\n", R1, data);
+            break;
 
-            case INS_COMP | INS_R2:
-                flags[ZERO] = R2 == data;
-                flags[NEGATIVE] = R2 > data;
-                break;
+        case INS_COMP | INS_R2:
+            flags[ZERO] = R2 == data;
+            flags[NEGATIVE] = R2 > data;
+            break;
 
-            case INS_COMP | INS_R3:
-                flags[ZERO] = R3 == data;
-                flags[NEGATIVE] = R3 > data;
-                break;
-            case INS_COMP | INS_R4:
-                flags[ZERO] = R4 == data;
-                flags[NEGATIVE] = R4 > data;
-                break;
+        case INS_COMP | INS_R3:
+            flags[ZERO] = R3 == data;
+            flags[NEGATIVE] = R3 > data;
+            break;
+        case INS_COMP | INS_R4:
+            flags[ZERO] = R4 == data;
+            flags[NEGATIVE] = R4 > data;
+            break;
 
-            case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
-                RAM[data] = 0;
-                break;
+        case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
+            RAM[data] = 0;
+            break;
 
-            case INS_MOVE | INS_DATA_ADDRESS:
-                RAM[data] = AC;
-                break;
+        case INS_MOVE | INS_DATA_ADDRESS:
+            RAM[data] = AC;
+            break;
 
-            case INS_NOP: // NOP
+        case INS_NOP: // NOP
 
-                break;
+            break;
 
-            case INS_PUSH | INS_DATA_ADDRESS: // PUSH
+        case INS_PUSH | INS_DATA_ADDRESS: // PUSH
+            SL++;
+            check_overflow();
+            RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+            break;
+
+        case INS_PUSH_IF_LESS | INS_DATA_ADDRESS:
+            if (flags[NEGATIVE])
+            {
                 SL++;
                 check_overflow();
                 RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
-                break;
-
-            case INS_PUSH_IF_LESS | INS_DATA_ADDRESS:
-                if (flags[NEGATIVE])
-                {
-                    SL++;
-                    check_overflow();
-                    RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
-                }
-                break;
-
-            case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
-                if (flags[ZERO])
-                {
-                    SL++;
-                    check_overflow();
-                    RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
-                }
-
-                break;
-
-            case INS_POP: // POP
-                PC = SP + SL - 1;
-                SL--;
-
-                break;
-
-            default:
-                // printf("Invalid %#x instruction found\n", instruction);
-                break;
             }
+            break;
+
+        case INS_PUSH_IF_ZERO | INS_DATA_ADDRESS: // PUSZ
+            if (flags[ZERO])
+            {
+                SL++;
+                check_overflow();
+                RAM[SP + SL] = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | (data - 1);
+            }
+
+            break;
+
+        case INS_POP: // POP
+            PC = SP + SL - 1;
+            SL--;
+
+            break;
+
+        default:
+            // printf("Invalid %#x instruction found\n", instruction);
+            break;
+        }
     }
 
     void systemCall()
     {
         char x;
         char text[40];
-        if(IS_DEBUG_PRINT){
+        if (IS_DEBUG_PRINT)
+        {
             printf(
                 "\nsystem called with %d\t R1 = %#x\n",
                 static_cast<int>(IR & 0x00ff),
                 static_cast<int>(R1));
         }
-       
 
         switch (IR & 0x00ff)
         {
@@ -1259,13 +1354,24 @@ public:
         }
     }
 
-    void showMemory(uint8_t start = 0x00, uint8_t limit = 0xFF)
+    void showMemory(uint8_t start = 0x00, uint16_t limit = 0xFF)
     {
         printf("\n");
         for (int address = start; address <= limit; ++address)
         {
             printf("[%#x]:%#x\n", address, RAM[address]);
         }
+    }
+
+    void showShareableProgramm(uint8_t start = 0x00, uint16_t limit = 0xFF)
+    {
+        printf("uint16_t RAM[] = [\n");
+        for (int address = start; address <= limit; ++address)
+        {
+
+            printf("%#x, \n", RAM[address]);
+        }
+        printf("]\n\n");
     }
 
     void check_overflow()
@@ -1289,7 +1395,7 @@ int main()
 
     CPU cpu;
 
-    const string programs[5] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os"};
+    const string programs[] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os", "gpio.os"};
 
     printf("Available programs:\n");
 

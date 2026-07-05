@@ -3,11 +3,13 @@ dclr $counter
 dclr $index
 dclr $input_size
 
+
 reset_counter:
     load %r1 0x00
     store %r1 $counter
     end
 
+;this function is very usefull
 reset_register:
     load %r1 0x00
     load %r2 0x00
