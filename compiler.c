@@ -272,7 +272,6 @@ void printTreeRecursive(Node *root, int depth)
     i = 0;
     while ( i < root->childCount)
     {
-
         printTreeRecursive(
             root->children[i],
             depth + 1);
@@ -289,7 +288,6 @@ void printTreeRecursive(Node *root, int depth)
 
 int main()
 {
-
     char program[MAX_FILE_LENGTH];
 
     int programSize;

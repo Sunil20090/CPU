@@ -9,7 +9,6 @@ define $ACTION_DELAY 0x02
 define $ACTION_NEC_SEND 0x03
 
 init_power_button:
-    ;0x20DF10EF
     load %r1 0x20
     store %r1 $power_button[0]
 
@@ -21,9 +20,10 @@ init_power_button:
 
     load %r1 0xEF
     store %r1 $power_button[3]
+    
     end
 
-toggle_gpio:
+toggle_gpio{api}:
     load %r1 $ACTION_TOGGLE
     syscall
     end
@@ -34,14 +34,11 @@ delay_1s:
     end
 
 nec_send{api}:
-    load %r1 $ACTION_NEC_SEND
+    load %r1 
     load %r2 $start_address
-    syscall
+    call toggle_gpio
+    syscall $ACTION_NEC_SEND
     end
 
 _main:
-    call init_power_button
-    aor %r1 $power_button
-    store %r1 $start_address
-    call nec_send
     end

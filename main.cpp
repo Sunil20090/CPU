@@ -1,9 +1,11 @@
 #include <iostream>
 #include <stdint.h>
+#include <stdlib.h>
 #include <fstream>
 #include <sstream>
 #include <bitset>
 #include <string>
+#include <cstring>
 #include <map>
 using namespace std;
 
@@ -46,14 +48,7 @@ using namespace std;
 #define SYS_PRINT 0x00  // 00000000
 #define SYS_SCAN 0x01   // 00000001
 
-typedef struct API
-{
-    const char name[10];
-    uint16_t pointer;
-    uint16_t args[10];
-} API;
 
-API* list[10];
 
 class CPU
 {
@@ -68,6 +63,8 @@ public:
     uint16_t IR = 0x00;
     uint8_t SP = 0x00;
     uint16_t SL = 0x00; // STACK_LENGTH
+    uint16_t API_POINTER = 0x00;
+    uint16_t API_STACK_LENGTH = 0x00;
 
     uint8_t IS_DEBUG_PRINT = 1;
 
@@ -96,7 +93,7 @@ public:
 
     void initMap()
     {
-        // mapping =
+        // mapping
         instructionMap["hlt"] = INS_HLT;
         instructionMap["store"] = INS_STORE;
         instructionMap["load"] = INS_LOAD;
@@ -134,14 +131,6 @@ public:
             std::cout << "Failed to open file.\n";
             return;
         }
-
-        int length = sizeof(list) / sizeof(API);
-        file << "API:\n" << length;
-        for(int i=0; i<length; i++){
-            file << list[i]->name << "\n";
-        }
-
-        file << "\n\n";
 
         file << "uint16_t program[] = {\n";
         for (int address = 0; address <= limit; ++address)
@@ -188,9 +177,6 @@ public:
             }
         }
     }
-
-    // 0x43
-    // 0b01000011
 
     void loadProgram(const string &programname)
     {
@@ -255,23 +241,18 @@ public:
         {
             cout << "Reading finished" << endl;
         }
+
+
         // saveProgram(lineCount);
-        
 
         run();
+
+        API_POINTER = lineCount + STACK_CAPACITY + 0x20;
         if (IS_DEBUG_PRINT)
         {
             showShareableProgramm(0x00, lineCount + STACK_CAPACITY + 0x20);
-
-            int length = sizeof(list) / sizeof(API);
-
-            printf("APi length: %d\n", length);
-            for(int i=0; i<length; i++){
-                printf("hello");
-                printf("API: /%s\n", list[i]->name);
-                printf("API: /%d\n", list[i]->pointer);
-            }
-
+            printf("Api length = %d\n", apiLength);
+            call_api((char *)"nec_send");
         }
     }
 
@@ -304,13 +285,76 @@ public:
         return register_value;
     }
 
-   
-    // void addToApis(const char* name, int apiPointer){
-    //     int nextIndex = sizeof(list) / sizeof(API);
-    //     API* api = (API *)malloc(sizeof(API));
-    //     api->name = name;
-    //     api->pointer = apiPointer;
-    // }
+#define MAX_APIS 10
+
+    char *apis[MAX_APIS];
+    uint16_t apiPointers[MAX_APIS];
+    int apiLength = 0;
+
+    void register_api(char *name, uint16_t pointer)
+    {
+        if (apiLength >= MAX_APIS)
+        {
+            printf("API list is full!\n");
+            return;
+        }
+
+        // Allocate memory for the name
+        apis[apiLength] = (char *)malloc(strlen(name) + 1);
+
+        if (apis[apiLength] == NULL)
+        {
+            printf("Memory allocation failed!\n");
+            return;
+        }
+
+        // Copy the string
+        strcpy(apis[apiLength], name);
+
+        apiPointers[apiLength] = pointer;
+
+        printf("Registered: %s at %d\n", apis[apiLength], apiPointers[apiLength]);
+
+        apiLength++;
+    }
+
+    void call_api(char *name)
+    {
+        for (int i = 0; i < apiLength; i++)
+        {
+            if (strcmp(apis[i], name) == 0)
+            {
+                // printf("API Found!\n");
+                // printf("Name    : %s\n", apis[i]);
+                // printf("Pointer : %d\n", apiPointers[i]);
+
+                // Your code
+                
+                uint8_t currentPointer = PC;
+
+                int j = 0;
+                while (1)
+                {
+                    IR = RAM[apiPointers[i] + j];
+
+                    uint16_t instruction = (IR & 0xff00) >> 8;
+                    uint8_t data = IR & 0x00ff;
+
+                    if (instruction == INS_POP)
+                        break;
+
+                    execute(instruction, data);
+                    translateProgramAt(apiPointers[i] + j);
+                    j++;
+                }
+                
+
+                return;
+            }
+        }
+
+        printf("API '%s' not found!\n", name);
+    }
 
     // parsing
     uint16_t *parse(string fileName, string &program, map<uint16_t, string> variableLineNumberMap, uint8_t *pLineCount)
@@ -329,6 +373,7 @@ public:
         string currentData = "";
         string currentAddress = "";
         string currentFunction = "";
+
 
         bool functionStarted = false;
 
@@ -743,9 +788,7 @@ public:
                         }
                         funtionMap[fileName + currentFunction] = binaryIndex;
                         if(apiStartIndex != -1){
-                            // addToApis(currentFunction.c_str(), binaryIndex);
-
-
+                            register_api((char *)currentFunction.c_str(), binaryIndex);
                         }
                         if (currentFunction == "_main")
                         {
@@ -959,22 +1002,18 @@ public:
 
             // //printf("Pointing to : %#x\n", static_cast<int>(PC));
 
-            execute();
+            IR = RAM[PC];
+            uint16_t instruction = (IR & 0xff00) >> 8;
+            uint8_t data = IR & 0x00ff;
+
+            execute(instruction, data);
         }
 
         // printf("\n\nProgramm ended at: %#x\n", static_cast<int>(PC));
     }
 
-    void execute()
+    void execute(uint16_t instruction, uint8_t data)
     {
-        IR = RAM[PC];
-        uint16_t instruction = (IR & 0xff00) >> 8;
-        uint8_t data = IR & 0x00ff;
-
-        // //printf("-->");
-        // int a;
-        // scanf("\n%d", &a);
-        // translateProgramAt(PC);
 
         // running
 

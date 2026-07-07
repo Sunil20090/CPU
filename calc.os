@@ -146,7 +146,6 @@ show_type_message:
     aor %r1 $message
     load %r2 0x08
     syscall 0x04
-
     end
 
 
@@ -155,7 +154,6 @@ multiply_loop:
     dec %r1
     comp %r1 0x00
     caln multiply_loop
-
     load %r2 '0'
     add %r2
     mov $result
