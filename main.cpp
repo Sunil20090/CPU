@@ -46,6 +46,15 @@ using namespace std;
 #define SYS_PRINT 0x00  // 00000000
 #define SYS_SCAN 0x01   // 00000001
 
+typedef struct API
+{
+    const char name[10];
+    uint16_t pointer;
+    uint16_t args[10];
+} API;
+
+API* list[10];
+
 class CPU
 {
 public:
@@ -125,6 +134,14 @@ public:
             std::cout << "Failed to open file.\n";
             return;
         }
+
+        int length = sizeof(list) / sizeof(API);
+        file << "API:\n" << length;
+        for(int i=0; i<length; i++){
+            file << list[i]->name << "\n";
+        }
+
+        file << "\n\n";
 
         file << "uint16_t program[] = {\n";
         for (int address = 0; address <= limit; ++address)
@@ -238,11 +255,23 @@ public:
         {
             cout << "Reading finished" << endl;
         }
-        saveProgram(lineCount);
+        // saveProgram(lineCount);
+        
+
         run();
         if (IS_DEBUG_PRINT)
         {
             showShareableProgramm(0x00, lineCount + STACK_CAPACITY + 0x20);
+
+            int length = sizeof(list) / sizeof(API);
+
+            printf("APi length: %d\n", length);
+            for(int i=0; i<length; i++){
+                printf("hello");
+                printf("API: /%s\n", list[i]->name);
+                printf("API: /%d\n", list[i]->pointer);
+            }
+
         }
     }
 
@@ -275,6 +304,14 @@ public:
         return register_value;
     }
 
+   
+    // void addToApis(const char* name, int apiPointer){
+    //     int nextIndex = sizeof(list) / sizeof(API);
+    //     API* api = (API *)malloc(sizeof(API));
+    //     api->name = name;
+    //     api->pointer = apiPointer;
+    // }
+
     // parsing
     uint16_t *parse(string fileName, string &program, map<uint16_t, string> variableLineNumberMap, uint8_t *pLineCount)
     {
@@ -301,8 +338,7 @@ public:
         {
             if (program[i] == ';')
             {
-                while (program[++i] != '\n')
-                    ;
+                while (program[++i] != '\n');
             }
 
             if (program[i] == '\t')
@@ -337,7 +373,7 @@ public:
                     {
                         if (IS_DEBUG_PRINT)
                         {
-                            cout << "char: \"" << program[i + 1] << "\"" << endl;
+                            // cout << "char: \"" << program[i + 1] << "\"" << endl;
                         }
 
                         if (program[++i] == '\n')
@@ -487,7 +523,7 @@ public:
                     {
                         if (IS_DEBUG_PRINT)
                         {
-                            cout << "char: \"" << program[i + 1] << "\"" << endl;
+                            // cout << "char: \"" << program[i + 1] << "\"" << endl;
                         }
 
                         if (program[++i] == '\n')
@@ -523,7 +559,7 @@ public:
                     {
                         if (IS_DEBUG_PRINT)
                         {
-                            cout << "char: \"" << program[i + 1] << "\"" << endl;
+                            // cout << "char: \"" << program[i + 1] << "\"" << endl;
                         }
 
                         if (program[++i] == '\n')
@@ -685,22 +721,39 @@ public:
 
                 else if (program[i] == ':')
                 {
-                    currentFunction = buffer;
+                    int apiStartIndex = buffer.find("{");
+                    if (apiStartIndex != -1)
+                    {
+                        currentFunction = buffer.substr(0, apiStartIndex);
 
-                    if (!isKeyAvailable(fileName + buffer, funtionMap))
+                        printf("API found ! %s [%s]\n", buffer.c_str(), currentFunction.c_str());
+                        
+                    }
+                    else
+                    {
+                        currentFunction = buffer;
+                    }
+                    
+
+                    if (!isKeyAvailable(fileName + currentFunction, funtionMap))
                     {
                         if (functionStarted)
                         {
                             throw runtime_error("Function not ended near: " + to_string(binaryIndex + 1));
                         }
-                        funtionMap[fileName + buffer] = binaryIndex;
-                        if (buffer == "_main")
+                        funtionMap[fileName + currentFunction] = binaryIndex;
+                        if(apiStartIndex != -1){
+                            // addToApis(currentFunction.c_str(), binaryIndex);
+
+
+                        }
+                        if (currentFunction == "_main")
                         {
                             *(binaries + 1) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
                         }
                         if (IS_DEBUG_PRINT)
                         {
-                            printf("FUNCTION STARTED AND Address assigned: %s %#x\n", (fileName + buffer).c_str(), static_cast<int>(binaryIndex));
+                            printf("FUNCTION STARTED AND Address assigned: %s %#x\n", (fileName + currentFunction).c_str(), static_cast<int>(binaryIndex));
                         }
 
                         functionStarted = true;
@@ -777,7 +830,6 @@ public:
                 }
                 else if (!currentInstruction.empty() && !currentData.empty() && !middleData.empty())
                 {
-
                     *(binaries + binaryIndex) = (instructionMap[currentInstruction] | getRegister(middleData[1])) << 8 | (stoi(currentData, nullptr, 16));
                     binaryIndex++;
                     currentInstruction.clear();
