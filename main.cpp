@@ -9,8 +9,9 @@
 #include <map>
 using namespace std;
 
-#define RAM_SIZE 0xffff // 1024*8 bits (1KB)
+#define RAM_SIZE 0xff // 1024*8 bits (1KB)
 #define STACK_CAPACITY 50
+#define MAX_APIS 10
 
 #define INS_HLT 0x10
 #define INS_JUMP 0x20
@@ -85,7 +86,7 @@ public:
     {
         initMap();
 
-        for (int address = 0; address < 0xFF; ++address)
+        for (int address = 0; address < RAM_SIZE; ++address)
         {
             RAM[address] = 0;
         }
@@ -206,6 +207,7 @@ public:
         }
 
         map<uint16_t, string> variableLineNumberMap;
+
         uint16_t *token = parse(programname, program, variableLineNumberMap, &lineCount);
 
         uint8_t i;
@@ -250,15 +252,14 @@ public:
         API_POINTER = lineCount + STACK_CAPACITY + 0x20;
         if (IS_DEBUG_PRINT)
         {
-            showShareableProgramm(0x00, lineCount + STACK_CAPACITY + 0x20);
+            printf("Api start from = %#x\n", API_POINTER);
+            showMemory(0x00, 0xff);
             printf("Api length = %d\n", apiLength);
-            call_api((char *)"nec_send");
         }
     }
 
     uint8_t getRegister(char ch)
     {
-
         uint8_t register_value;
 
         switch (ch)
@@ -285,13 +286,38 @@ public:
         return register_value;
     }
 
-#define MAX_APIS 10
+    void runAsApi()
+    {
+        int pushCounter = 0;
+        SL = 0;
+        while (RAM[++PC] & 0xff00)
+        {
+            // //printf("Pointing to : %#x\n", static_cast<int>(PC));
+
+            IR = RAM[PC];
+            uint16_t instruction = (IR & 0xff00) >> 8;
+            uint8_t data = IR & 0x00ff;
+
+            if(instruction == (INS_PUSH | INS_DATA_ADDRESS)){
+                pushCounter++;
+            }else if(instruction == INS_POP){
+                pushCounter--;
+            }
+
+            if(pushCounter < 0){
+                break;
+            }else {
+                execute(instruction, data);
+            }
+            
+        }
+    }
 
     char *apis[MAX_APIS];
     uint16_t apiPointers[MAX_APIS];
     int apiLength = 0;
 
-    void register_api(char *name, uint16_t pointer)
+    void register_api(char *name, uint16_t pointer, int offset)
     {
         if (apiLength >= MAX_APIS)
         {
@@ -314,6 +340,15 @@ public:
         apiPointers[apiLength] = pointer;
 
         printf("Registered: %s at %d\n", apis[apiLength], apiPointers[apiLength]);
+        int k = 0;
+        while (*(name + k) != '\0')
+        {
+            printf("Saving API... %#x : %c\n", API_POINTER + API_STACK_LENGTH + offset, *(name + k));
+            RAM[offset + API_POINTER + API_STACK_LENGTH++] = *(name + k);
+            k++;
+        }
+        RAM[offset+API_POINTER + API_STACK_LENGTH++] = *(name + k);
+        RAM[offset+API_POINTER + API_STACK_LENGTH++] = pointer;
 
         apiLength++;
     }
@@ -332,22 +367,15 @@ public:
                 
                 uint8_t currentPointer = PC;
 
-                int j = 0;
-                while (1)
-                {
-                    IR = RAM[apiPointers[i] + j];
+                printf("===================\n", name);
+                printf("API Running for: %s\n", name);
+                printf("===================\n", name);
 
-                    uint16_t instruction = (IR & 0xff00) >> 8;
-                    uint8_t data = IR & 0x00ff;
+                PC = apiPointers[i];
+                runAsApi();
+                // run();
 
-                    if (instruction == INS_POP)
-                        break;
-
-                    execute(instruction, data);
-                    translateProgramAt(apiPointers[i] + j);
-                    j++;
-                }
-                
+                printf("API Running completed!\n");
 
                 return;
             }
@@ -363,6 +391,7 @@ public:
         map<string, uint16_t> variableMap;
         map<string, uint16_t> arrayMap;
         map<string, string> staticVarMap;
+        map<string, uint16_t> apiMap;
 
         uint16_t *binaries = new uint16_t[300];
         uint16_t binaryIndex = 2;
@@ -402,9 +431,10 @@ public:
                 if (buffer == "end")
                 {
                     functionStarted = false;
+                    
+                    *(binaries + binaryIndex++) = ((INS_POP) << 8) | funtionMap[currentFunction];
                     currentFunction = "";
                     buffer.clear();
-                    *(binaries + binaryIndex++) = ((INS_POP) << 8);
                     continue;
                 }
 
@@ -424,11 +454,6 @@ public:
                         if (program[++i] == '\n')
                         {
 
-                            if (IS_DEBUG_PRINT)
-                            {
-                                printf("defined buffer found %s", buffer.c_str());
-                            }
-
                             if (isKeyAvailable(fileName + buffer, staticVarMap))
                             {
                                 throw runtime_error("Already defined \"" + fileName + buffer + "\" ");
@@ -441,8 +466,6 @@ public:
                             string variableName = buffer.substr(index + 1, wideSpaceIndex - index - 1);
 
                             string value = buffer.substr(wideSpaceIndex + 1, newLineIndex - wideSpaceIndex);
-
-                            printf("variable name %s and value : %s\" [%x]\n", variableName.c_str(), value.c_str(), stoi(value, nullptr, 16));
                             staticVarMap[fileName + variableName] = value;
                             break;
                         }
@@ -746,15 +769,15 @@ public:
                     // printf("Register found! R%c\n", buffer[2]);
                     buffer.clear();
                 }
-                else if (buffer.substr(0, 1) == "[")
-                {
-                    int indexOf = buffer.find("]");
-                    if (indexOf == -1)
-                    {
-                        throw;
-                    }
-                    currentAddress = buffer.substr(3, indexOf - 1);
-                }
+                // else if (buffer.substr(0, 1) == "[")
+                // {
+                //     int indexOf = buffer.find("]");
+                //     if (indexOf == -1)
+                //     {
+                //         throw;
+                //     }
+                //     currentAddress = buffer.substr(3, indexOf - 1);
+                // }
                 else if (buffer.substr(0, 1) == "\'" && buffer.substr(2, 3) == "\'")
                 {
                     int value = static_cast<int>(buffer[1]);
@@ -779,7 +802,6 @@ public:
                         currentFunction = buffer;
                     }
                     
-
                     if (!isKeyAvailable(fileName + currentFunction, funtionMap))
                     {
                         if (functionStarted)
@@ -788,7 +810,8 @@ public:
                         }
                         funtionMap[fileName + currentFunction] = binaryIndex;
                         if(apiStartIndex != -1){
-                            register_api((char *)currentFunction.c_str(), binaryIndex);
+                            
+                            apiMap[currentFunction] = binaryIndex;
                         }
                         if (currentFunction == "_main")
                         {
@@ -825,8 +848,12 @@ public:
                             {
                                 throw runtime_error("Index is out of range");
                             }
+                            int decimal_num = variableMap[fileName + currentFunction + v_name_without_arr] + index;
+                            char hex_string[10];
 
-                            currentAddress = to_string(variableMap[fileName + currentFunction + v_name_without_arr] + index);
+                            snprintf(hex_string, sizeof(hex_string), "%X", decimal_num);
+
+                            currentAddress = hex_string;
                             // printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
                             variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name_without_arr;
                         }
@@ -841,7 +868,10 @@ public:
                     }
                     else if (isKeyAvailable(fileName + currentFunction + v_name, variableMap))
                     {
-                        currentAddress = to_string(variableMap[fileName + currentFunction + v_name]);
+                        int decimal_num = variableMap[fileName + currentFunction + v_name];
+                        char hex_string[10];
+                        snprintf(hex_string, sizeof(hex_string), "%x", decimal_num);
+                        currentAddress = hex_string;
                         variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name;
                     }
                     else
@@ -938,35 +968,45 @@ public:
             }
         }
 
+        
+
         for (auto &pair : variableLineNumberMap)
         {
             uint16_t lineNumber = pair.first;
-            uint16_t oldOffset = (*(binaries + lineNumber) & 0x00ff);
-            if (isKeyAvailable(pair.second, arrayMap))
+            uint16_t variableAddressAssigned = (*(binaries + lineNumber) & 0x00ff);
+            string variableName = pair.second;
+            if (isKeyAvailable(variableName, arrayMap))
             {
-                if (IS_DEBUG_PRINT)
-                {
-                    printf("ARRAY %s[%d] variableMap[%s]=[%d]\n", pair.second.c_str(), arrayMap[pair.second], pair.second.c_str(), variableMap[pair.second]);
-                }
-                if (arrayMap[pair.second] < oldOffset - variableMap[pair.second])
+                uint16_t arraySize = arrayMap[variableName];
+                if (arraySize < variableAddressAssigned - variableMap[variableName])
                 {
                     if (IS_DEBUG_PRINT)
                     {
-                        printf("OUT OF RANGE ARRAY: %s < %d \n", pair.second.c_str(), oldOffset - variableMap[pair.second]);
+                        printf("OUT OF RANGE ARRAY: %s < %d \n", variableName.c_str(), variableAddressAssigned - variableMap[variableName]);
                     }
-                    throw runtime_error("OUT OF RANGE ARRAY: " + oldOffset + pair.second);
+                    //throw runtime_error("OUT OF RANGE ARRAY: " + variableAddressAssigned + variableName);
                 }
             }
-            *(binaries + lineNumber) = (*(binaries + lineNumber) & 0xff00) | ((oldOffset + binaryIndex + STACK_CAPACITY + 1));
+            *(binaries + lineNumber) = (*(binaries + lineNumber) & 0xff00) | ((variableAddressAssigned + binaryIndex + STACK_CAPACITY + 1));
         }
 
-        int programSize = binaryIndex + variable_counter + STACK_CAPACITY;
+        
 
-        printf("Program size is  %d bytes (%f%%)\n", programSize, (float)(programSize * 100) / RAM_SIZE);
+       
 
         *(pLineCount) = ++binaryIndex;
 
+        for (auto &pair : apiMap)
+        {
+            register_api((char *)(pair.first.c_str()), pair.second, binaryIndex + variable_counter + STACK_CAPACITY + 1);
+        }
+
+        int programSize = binaryIndex + variable_counter + STACK_CAPACITY + API_STACK_LENGTH;
+
+        printf("Program size is  %d bytes (%f%%)\n", programSize * 2, (float)(programSize * 100) / RAM_SIZE);
+
         return binaries;
+
     }
 
     bool isKeyAvailable(const string &key, map<string, uint16_t> &map)
@@ -1014,6 +1054,8 @@ public:
 
     void execute(uint16_t instruction, uint8_t data)
     {
+        printf("===========\n");
+        translateProgramAt(PC);
 
         // running
 
@@ -1440,6 +1482,13 @@ public:
             break;
         }
 
+        case 0x03:
+            for(int i=0; i<4; ++i){
+                printf("Sending PWM...%#x\n", RAM[R1 + i]);
+            }
+            
+            break;
+
         default:
             break;
         }
@@ -1497,13 +1546,18 @@ int main()
         printf("(%d). %s:\n", i + 1, programs[i].c_str());
     }
 
-    int x;
+    // int x;
 
-    scanf("%d", &x);
+    // scanf("%d", &x);
 
-    cpu.loadProgram(programs[x - 1]);
+    cpu.loadProgram(programs[5]);
+
+    cpu.call_api((char *)"power");
+    cpu.call_api((char *)"vol_minus");
+    cpu.call_api((char *)"vol_plus");
 
     int i;
     cin >> i;
+
     return 0;
 }
