@@ -160,7 +160,6 @@ multiply_loop:
     call show_result
     end
 
-
 multiply:
     load %r1 $first_number
     clr

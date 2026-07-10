@@ -10,7 +10,14 @@
 using namespace std;
 
 #define RAM_SIZE 0xff // 1024*8 bits (1KB)
-#define STACK_CAPACITY 50
+#define STACK_CAPACITY 5
+#define META_DATA_LENGTH 6
+#define META_DATA_INDEX_META_DATA_LENGTH 0
+#define META_DATA_INDEX_PROGRAMM_LENGTH 1
+#define META_DATA_INDEX_STACK_START_ADDRESS 2
+#define META_DATA_INDEX_USED_HEAP 3
+#define META_DATA_INDEX_API_START_ADDRESS 4
+#define META_DATA_INDEX_USED_MEMORY 5
 #define MAX_APIS 10
 
 #define INS_HLT 0x10
@@ -54,13 +61,17 @@ using namespace std;
 class CPU
 {
 public:
-    uint8_t R1 = 0x00; // First Register
-    uint8_t R2 = 0x00; // Second Register
-    uint8_t R3 = 0x00; // Second Register
-    uint8_t R4 = 0x00; // Second Register
+    uint8_t R[4] = {0x00, 0x00, 0x00, 0x00};
+
+    #define R1 R[0]
+    #define R2 R[1]
+    #define R3 R[2]
+    #define R4 R[3]
+
+
     uint8_t AR = 0x00; // Address Register
     uint8_t AC = 0x00; // Accumulator
-    uint8_t PC = 0x00;
+    uint8_t PC = META_DATA_LENGTH - 1;
     uint16_t IR = 0x00;
     uint8_t SP = 0x00;
     uint16_t SL = 0x00; // STACK_LENGTH
@@ -140,9 +151,32 @@ public:
             // printf("%#x, \n", RAM[address]);
         }
         // printf("]");
-        file << "};";
+        file << "};\n\n";
+
+        file << std::dec;
+
+        file << "META DATA LENGTH      : " << RAM[META_DATA_INDEX_META_DATA_LENGTH]
+             << " (" << RAM[META_DATA_INDEX_META_DATA_LENGTH] * sizeof(uint16_t) << " bytes)\n";
+
+        file << "PROGRAM LENGTH        : " << RAM[META_DATA_INDEX_PROGRAMM_LENGTH]
+             << " (" << RAM[META_DATA_INDEX_PROGRAMM_LENGTH] * sizeof(uint16_t) << " bytes)\n";
+
+        file << "STACK START ADDRESS   : 0x" << std::hex
+             << RAM[META_DATA_INDEX_STACK_START_ADDRESS] << std::dec << "\n";
+
+        file << "HEAP SIZE             : " << RAM[META_DATA_INDEX_USED_HEAP]
+             << " (" << RAM[META_DATA_INDEX_USED_HEAP] * sizeof(uint16_t) << " bytes)\n";
+
+        file << "API START ADDRESS     : 0x" << std::hex
+             << RAM[META_DATA_INDEX_API_START_ADDRESS] << std::dec << "\n";
+
+        file << "META USED MEMORY      : " << RAM[META_DATA_INDEX_USED_MEMORY]
+             << " (" << RAM[META_DATA_INDEX_USED_MEMORY] * sizeof(uint16_t) << " bytes)\n";
 
         file.close(); // Optional (automatically called when file goes out of scope)
+
+
+        
 
         std::cout << "File written successfully.\n";
     }
@@ -163,7 +197,7 @@ public:
                            static_cast<int>(i),
                            pair.first.c_str(), middle,
                            static_cast<int>(secondHalf));
-                    break;
+                    return;
                 }
             }
             else if (((instructionMap[pair.first] | INS_DATA_ADDRESS) == instruction))
@@ -173,10 +207,14 @@ public:
                     printf("%#x: %s%d [%#x]\n",
                            static_cast<int>(i),
                            pair.first.c_str(), middle, static_cast<int>(secondHalf));
-                    break;
+                    return;
                 }
             }
         }
+
+        printf("%#x: %#x\n",
+               static_cast<int>(i),
+               RAM[i]);
     }
 
     void loadProgram(const string &programname)
@@ -216,13 +254,13 @@ public:
             RAM[i] = token[i];
         }
 
-        SP = i;
+        SP = RAM[META_DATA_INDEX_STACK_START_ADDRESS];
 
         // printf("Stack pointer is pointing to : %#x\n", i);
 
         cout
             << "\n"
-            << "================ Translated program ==========\n"
+            << "============== Translated program ==========\n"
             << endl;
 
         for (i = 0; i < lineCount; i++)
@@ -244,15 +282,13 @@ public:
             cout << "Reading finished" << endl;
         }
 
-
-        // saveProgram(lineCount);
+        // saveProgram(0xff);
+        saveProgram(RAM[META_DATA_INDEX_USED_MEMORY]);
 
         run();
 
-        API_POINTER = lineCount + STACK_CAPACITY + 0x20;
         if (IS_DEBUG_PRINT)
         {
-            printf("Api start from = %#x\n", API_POINTER);
             showMemory(0x00, 0xff);
             printf("Api length = %d\n", apiLength);
         }
@@ -324,7 +360,6 @@ public:
             printf("API list is full!\n");
             return;
         }
-
         // Allocate memory for the name
         apis[apiLength] = (char *)malloc(strlen(name) + 1);
 
@@ -341,14 +376,16 @@ public:
 
         printf("Registered: %s at %d\n", apis[apiLength], apiPointers[apiLength]);
         int k = 0;
+
+        RAM[offset + API_STACK_LENGTH++] = pointer;
         while (*(name + k) != '\0')
         {
-            printf("Saving API... %#x : %c\n", API_POINTER + API_STACK_LENGTH + offset, *(name + k));
-            RAM[offset + API_POINTER + API_STACK_LENGTH++] = *(name + k);
+            printf("Saving API... %#x : %c\n", API_STACK_LENGTH + offset, *(name + k));
+            RAM[offset + API_STACK_LENGTH++] = *(name + k);
             k++;
         }
-        RAM[offset+API_POINTER + API_STACK_LENGTH++] = *(name + k);
-        RAM[offset+API_POINTER + API_STACK_LENGTH++] = pointer;
+        printf("Saving API... %#x : %c\n", API_STACK_LENGTH + offset, *(name + k));
+        RAM[offset + API_STACK_LENGTH++] = *(name + k);
 
         apiLength++;
     }
@@ -392,9 +429,11 @@ public:
         map<string, uint16_t> arrayMap;
         map<string, string> staticVarMap;
         map<string, uint16_t> apiMap;
+        map<string, string> memoryMap;
 
         uint16_t *binaries = new uint16_t[300];
-        uint16_t binaryIndex = 2;
+        memset(binaries, 0, 256 * sizeof(uint16_t));
+        uint16_t binaryIndex = META_DATA_LENGTH;
 
         string buffer = "";
         string currentInstruction = "";
@@ -402,7 +441,6 @@ public:
         string currentData = "";
         string currentAddress = "";
         string currentFunction = "";
-
 
         bool functionStarted = false;
 
@@ -422,16 +460,9 @@ public:
 
             if (program[i] == ' ' || program[i] == '\n' || program[i] == ':')
             {
-
-                if (IS_DEBUG_PRINT)
-                {
-                    // printf("buffer = [%s], \t\tprogram[i] = %c\t CI=[%s]\tCD=[%s]\tMD=[%s] \tAD=[%s]\n", buffer.c_str(), program[i] == '\n' ? 'N' : program[i] == ' ' ? 'S': program[i], currentInstruction.c_str(), currentData.c_str(), middleData.c_str(), currentAddress.c_str());
-                }
-
                 if (buffer == "end")
                 {
-                    functionStarted = false;
-                    
+                    functionStarted = false;                
                     *(binaries + binaryIndex++) = ((INS_POP) << 8) | funtionMap[currentFunction];
                     currentFunction = "";
                     buffer.clear();
@@ -480,7 +511,7 @@ public:
                     continue;
                 }
 
-                if (buffer == "save")
+                if (buffer == "memory")
                 {
                     buffer.clear();
 
@@ -493,57 +524,27 @@ public:
                                 printf("[buffer]=[%s]\n", buffer.c_str());
                             }
 
-                            if (buffer.substr(0, 1) == "\"" && buffer.substr(buffer.length() - 1, 1) == "\"")
+                            int variableNameStartIndex = buffer.find("$");
+                            int dataStartIndex = buffer.find("[");
+                            int dataEndIndex = buffer.find("]");
+
+                            string variableName = buffer.substr(variableNameStartIndex + 1, dataStartIndex - variableNameStartIndex - 1);
+                            string dataArray = buffer.substr(dataStartIndex + 1, dataEndIndex - dataStartIndex - 1);
+
+                            if (isKeyAvailable(fileName + variableName, arrayMap))
                             {
-
-                                int index = buffer.find("$");
-                                int wideSpaceIndex = buffer.find(" ");
-
-                                string variableName = buffer.substr(index + 1, wideSpaceIndex - index - 1);
-
-                                if (isKeyAvailable(fileName + currentFunction + variableName, variableMap) && isKeyAvailable(fileName + currentFunction + variableName, arrayMap))
-                                {
-
-                                    int stringStartIndex = buffer.find("\"");
-                                    int lastStringIndex = buffer.find_last_of("\"");
-
-                                    string stringData = buffer.substr(stringStartIndex + 1, lastStringIndex - stringStartIndex - 1);
-
-                                    if (IS_DEBUG_PRINT)
-                                    {
-                                        printf("String data: [%s]--\n", stringData.c_str());
-                                    }
-                                    int i = 0;
-                                    while (i < lastStringIndex - stringStartIndex - 1)
-                                    {
-                                        // printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
-                                        *(binaries + binaryIndex) = ((INS_LOAD | INS_R1) << 8) | stringData[i];
-                                        binaryIndex++;
-                                        *(binaries + binaryIndex) = ((INS_STORE | INS_DATA_ADDRESS | INS_R1) << 8) | variableMap[fileName + currentFunction + variableName] + i;
-                                        variableLineNumberMap[binaryIndex] = fileName + currentFunction + variableName;
-                                        binaryIndex++;
-                                        i++;
-                                    }
-                                    *(binaries + binaryIndex) = ((INS_LOAD | INS_R1) << 8);
-                                    binaryIndex++;
-                                    *(binaries + binaryIndex) = ((INS_STORE | INS_DATA_ADDRESS | INS_R1) << 8) | variableMap[fileName + currentFunction + variableName] + i;
-                                    variableLineNumberMap[binaryIndex] = fileName + currentFunction + variableName;
-                                    binaryIndex++;
-                                }
-                                else
-                                {
-                                    throw runtime_error("Variable not defined as an array");
-                                }
-                                if (IS_DEBUG_PRINT)
-                                {
-                                    printf("Variable found [%s]\n", variableName.c_str());
-                                }
+                                memoryMap[fileName + variableName] = dataArray;
                             }
-
+                            else if (isKeyAvailable(fileName + variableName, variableMap)){
+                                memoryMap[fileName + variableName] = dataArray;
+                            }
                             else
                             {
-                                throw runtime_error("Invalid string");
+                                throw;
                             }
+
+                            printf("memory will be save to %s--\n", variableName.c_str());
+                            printf("data in memory will be %s--\n", dataArray.c_str());
 
                             break;
                         }
@@ -661,7 +662,6 @@ public:
 
                     while (1)
                     {
-
                         if (program[++i] == '\n')
                         {
                             if (!isKeyAvailable(fileName + buffer, funtionMap))
@@ -766,7 +766,6 @@ public:
                 else if (buffer.substr(0, 1) == "%")
                 {
                     middleData = buffer.substr(1, 3);
-                    // printf("Register found! R%c\n", buffer[2]);
                     buffer.clear();
                 }
                 // else if (buffer.substr(0, 1) == "[")
@@ -790,9 +789,11 @@ public:
                 else if (program[i] == ':')
                 {
                     int apiStartIndex = buffer.find("{");
+                    string apiName = "";
                     if (apiStartIndex != -1)
                     {
                         currentFunction = buffer.substr(0, apiStartIndex);
+                        apiName = buffer.substr(apiStartIndex + 1, buffer.length() - apiStartIndex - 2);
 
                         printf("API found ! %s [%s]\n", buffer.c_str(), currentFunction.c_str());
                         
@@ -810,12 +811,11 @@ public:
                         }
                         funtionMap[fileName + currentFunction] = binaryIndex;
                         if(apiStartIndex != -1){
-                            
-                            apiMap[currentFunction] = binaryIndex;
+                            apiMap[apiName] = binaryIndex;
                         }
                         if (currentFunction == "_main")
                         {
-                            *(binaries + 1) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
+                            *(binaries + META_DATA_LENGTH) = ((INS_JUMP | INS_DATA_ADDRESS) << 8) | binaryIndex;
                         }
                         if (IS_DEBUG_PRINT)
                         {
@@ -829,7 +829,6 @@ public:
                 }
                 else if (buffer.substr(0, 1) == "$")
                 {
-
                     string v_name = buffer.substr(1, buffer.length() - 1);
                     int startIndex = v_name.find("[");
                     int endIndex = v_name.find("]");
@@ -837,8 +836,6 @@ public:
                     if (startIndex != -1 && endIndex != -1)
                     {
                         string v_name_without_arr = v_name.substr(0, startIndex);
-
-                        // printf("Using array %s\n", v_name_without_arr.c_str());
 
                         if (isKeyAvailable(fileName + currentFunction + v_name_without_arr, variableMap))
                         {
@@ -854,7 +851,7 @@ public:
                             snprintf(hex_string, sizeof(hex_string), "%X", decimal_num);
 
                             currentAddress = hex_string;
-                            // printf("index: %d,  variableMap[v_name_without_arr]: %d\n", index, variableMap[v_name_without_arr]);
+
                             variableLineNumberMap[binaryIndex] = fileName + currentFunction + v_name_without_arr;
                         }
                         else
@@ -892,8 +889,6 @@ public:
                     currentData.clear();
                     currentAddress.clear();
                 }
-
-                // //printf(" [%s, %s, %s]\n", currentInstruction.c_str(), middleData.c_str(), currentAddress.c_str());
 
                 if (!currentFunction.empty())
                 {
@@ -958,17 +953,7 @@ public:
 
             string s(1, program[i]);
             buffer += s;
-        }
-
-        for (auto &pair : variableMap)
-        {
-            if (IS_DEBUG_PRINT)
-            {
-                printf("variables found:[%s]\n", pair.first.c_str());
-            }
-        }
-
-        
+        }        
 
         for (auto &pair : variableLineNumberMap)
         {
@@ -984,24 +969,65 @@ public:
                     {
                         printf("OUT OF RANGE ARRAY: %s < %d \n", variableName.c_str(), variableAddressAssigned - variableMap[variableName]);
                     }
-                    //throw runtime_error("OUT OF RANGE ARRAY: " + variableAddressAssigned + variableName);
+                    throw runtime_error("OUT OF RANGE ARRAY: " + variableAddressAssigned + variableName);
                 }
             }
             *(binaries + lineNumber) = (*(binaries + lineNumber) & 0xff00) | ((variableAddressAssigned + binaryIndex + STACK_CAPACITY + 1));
         }
 
-        
+        int heapSize = 0;
+        for (auto &pair : variableMap)
+        {
+            if(isKeyAvailable(pair.first, arrayMap)){
+                heapSize += arrayMap[pair.first];
+            }else {
+                heapSize++;
+            }
 
-       
+            if(isKeyAvailable(pair.first, memoryMap)){
+                const char * data = memoryMap[pair.first].c_str();
+                int i = 0;
+                int bufferIndex = 0;
+                int dataIndex = 0;
+                char* dataString = new char[20];
+                while(*(data + i) != '\0'){
+                    if (*(data + i) == ','){
+                        *(dataString + bufferIndex) = '\0';
+                        printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
 
-        *(pLineCount) = ++binaryIndex;
+                        RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
+                        i++;
+                        dataIndex++;
+                        bufferIndex = 0;
+                    }
+                    *(dataString + bufferIndex) = *(data + i);
+                    bufferIndex++;
+                    i++;
+                }
+
+                *(dataString + bufferIndex) = '\0';
+                RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
+                printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
+            }
+        }
+
+        *(pLineCount) = binaryIndex;        
 
         for (auto &pair : apiMap)
         {
             register_api((char *)(pair.first.c_str()), pair.second, binaryIndex + variable_counter + STACK_CAPACITY + 1);
         }
 
+        
+
         int programSize = binaryIndex + variable_counter + STACK_CAPACITY + API_STACK_LENGTH;
+
+        *(binaries + META_DATA_INDEX_META_DATA_LENGTH) = META_DATA_LENGTH;
+        *(binaries + META_DATA_INDEX_PROGRAMM_LENGTH) = *(pLineCount)-META_DATA_LENGTH;
+        *(binaries + META_DATA_INDEX_STACK_START_ADDRESS) = *(pLineCount);
+        *(binaries + META_DATA_INDEX_USED_HEAP) = heapSize;
+        *(binaries + META_DATA_INDEX_API_START_ADDRESS) = binaryIndex + variable_counter + STACK_CAPACITY + 1;
+        *(binaries + META_DATA_INDEX_USED_MEMORY) = programSize;
 
         printf("Program size is  %d bytes (%f%%)\n", programSize * 2, (float)(programSize * 100) / RAM_SIZE);
 
@@ -1039,7 +1065,6 @@ public:
     {
         while (RAM[++PC] & 0xff00)
         {
-
             // //printf("Pointing to : %#x\n", static_cast<int>(PC));
 
             IR = RAM[PC];
@@ -1054,11 +1079,14 @@ public:
 
     void execute(uint16_t instruction, uint8_t data)
     {
+
+        uint8_t reg = instruction & 0x03;
+        uint8_t opcode = instruction & ~0x03;
+
         printf("===========\n");
         translateProgramAt(PC);
 
         // running
-
         switch (instruction)
         {
 
@@ -1075,119 +1103,53 @@ public:
             break;
 
         case INS_INC | INS_R1:
-            R1 += 1;
-            break;
-
         case INS_INC | INS_R2:
-            R2 += 1;
-            break;
-
         case INS_INC | INS_R3:
-            R3 += 1;
-            break;
-
         case INS_INC | INS_R4:
-            R4 += 1;
+            R[reg]++;
             break;
 
         case INS_DEC | INS_R1:
-            R1 -= 1;
-            break;
-
         case INS_DEC | INS_R2:
-            R2 -= 1;
-            break;
-
         case INS_DEC | INS_R3:
-            R3 -= 1;
-            break;
-
         case INS_DEC | INS_R4:
-            R4 -= 1;
+            R[reg]--;
             break;
 
         case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R1:
-            R1 = data;
-            break;
-
         case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R2:
-            R2 = data;
-            break;
-
         case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R3:
-            R3 = data;
-            break;
-
         case INS_GET_ADDRESS | INS_DATA_ADDRESS | INS_R4:
-            R4 = data;
+            R[reg] = data;
             break;
 
         case INS_STORE | INS_DATA_ADDRESS | INS_R1:
-            RAM[data] = R1;
-            R1 = 0;
-            break;
-
         case INS_STORE | INS_DATA_ADDRESS | INS_R2:
-            RAM[data] = R2;
-            R2 = 0;
-            break;
-
         case INS_STORE | INS_DATA_ADDRESS | INS_R3:
-            RAM[data] = R3;
-            R3 = 0;
-            break;
-
         case INS_STORE | INS_DATA_ADDRESS | INS_R4:
-            RAM[data] = R4;
-            R3 = 0;
+            RAM[data] = R[reg];
+            R[reg] = 0;
             break;
 
         case INS_LOAD | INS_R1:
-            R1 = data;
-            break;
-
         case INS_LOAD | INS_R2:
-            R2 = data;
-            break;
-
         case INS_LOAD | INS_R3:
-            R3 = data;
-            break;
-
         case INS_LOAD | INS_R4:
-            R4 = data;
+            R[reg] = data;
             break;
 
         case INS_LOAD | INS_DATA_ADDRESS | INS_R1:
-            R1 = RAM[data];
-            break;
-
         case INS_LOAD | INS_DATA_ADDRESS | INS_R2:
-            R2 = RAM[data];
-            break;
-
         case INS_LOAD | INS_DATA_ADDRESS | INS_R3:
-            R3 = RAM[data];
-            break;
-
         case INS_LOAD | INS_DATA_ADDRESS | INS_R4:
-            R4 = RAM[data];
+            R[reg] = RAM[data];
             break;
 
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R1:
-            R1 = RAM[RAM[data]];
-            break;
-
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R2:
-            R2 = RAM[RAM[data]];
-            break;
-
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R3:
-            R3 = RAM[RAM[data]];
-            break;
-
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R4:
-            R4 = RAM[RAM[data]];
+            R[reg] = RAM[RAM[data]];
             break;
 
         case INS_JUMP | INS_DATA_ADDRESS:
@@ -1202,21 +1164,11 @@ public:
             PC = flags[NEGATIVE] ? data : PC;
             break;
 
-        case INS_ADD | INS_R1: // ADR1
-            AC += R1;
-            break;
-
-        case INS_ADD | INS_R2: // ADR1
-            AC += R2;
-
-            break;
-
-        case INS_ADD | INS_R3: // ADR1
-            AC += R3;
-
-            break;
-        case INS_ADD | INS_R4: // ADR1
-            AC += R4;
+        case INS_ADD | INS_R1:
+        case INS_ADD | INS_R2:
+        case INS_ADD | INS_R3:
+        case INS_ADD | INS_R4:
+            AC += R[reg];
             break;
 
         case INS_ADD | INS_DATA_ADDRESS:
@@ -1231,96 +1183,39 @@ public:
             AC -= RAM[data];
             break;
 
-        case INS_SUBTRACT | INS_R1: // SBR1
-            AC -= R1;
+        case INS_SUBTRACT | INS_R1:
+        case INS_SUBTRACT | INS_R2:
+        case INS_SUBTRACT | INS_R3:
+        case INS_SUBTRACT | INS_R4:
+            AC -= R[reg];
             break;
 
-        case INS_SUBTRACT | INS_R2: // SBR2
-            if (IS_DEBUG_PRINT)
-            {
-
-                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-            }
-            AC -= R2;
-            if (IS_DEBUG_PRINT)
-            {
-                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-            }
-
+        case INS_OR | INS_R1:
+        case INS_OR | INS_R2:
+        case INS_OR | INS_R3:
+        case INS_OR | INS_R4:
+            AC |= R[reg];
             break;
 
-        case INS_SUBTRACT | INS_R3: // SBR3
-            AC -= R3;
-
-            break;
-
-        case INS_SUBTRACT | INS_R4: // SBR4
-            AC -= R4;
-            break;
-
-        case INS_OR | INS_R1: // SBR4
-            AC |= R1;
-            break;
-        case INS_OR | INS_R2: // SBR4
-            AC |= R2;
-            break;
-        case INS_OR | INS_R3: // SBR4
-            AC |= R3;
-            break;
-        case INS_OR | INS_R4: // SBR4
-            AC |= R4;
-            break;
-
-        case INS_AND | INS_R1: // SBR4
-            AC &= R1;
-            break;
-        case INS_AND | INS_R2: // SBR4
-            if (IS_DEBUG_PRINT)
-            {
-                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-            }
-            AC &= R2;
-            if (IS_DEBUG_PRINT)
-            {
-                printf("Accumulator..[R2]=[%d] [AC]=[%d]\n", R2, AC);
-            }
-
-            break;
-        case INS_AND | INS_R3: // SBR4
-            AC &= R3;
-            break;
-        case INS_AND | INS_R4: // SBR4
-            AC &= R4;
+        case INS_AND | INS_R1:
+        case INS_AND | INS_R2:
+        case INS_AND | INS_R3:
+        case INS_AND | INS_R4:
+            AC &= R[reg];
             break;
 
         case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-            RAM[data] = RAM[data] << R1;
-            break;
-
         case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-            RAM[data] = RAM[data] << R2;
-            break;
         case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-            RAM[data] = RAM[data] << R3;
-            break;
         case INS_LEFT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-            RAM[data] = RAM[data] << R4;
+            RAM[data] = RAM[data] << R[reg];
             break;
 
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R1:
-            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-            RAM[data] = RAM[data] >> R1;
-            printf("RIGHTSHIFT..[R1]=[%d] RAM[%d]=[%#x]\n", R1, data, RAM[data]);
-            break;
-
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R2:
-            RAM[data] = RAM[data] >> R2;
-            break;
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R3:
-            RAM[data] = RAM[data] >> R3;
-            break;
         case INS_RIGHT_SHIFT | INS_DATA_ADDRESS | INS_R4:
-            RAM[data] = RAM[data] >> R4;
+            RAM[data] = RAM[data] >> R[reg];
             break;
 
         case INS_CLEAR_ACC: // CLR
@@ -1331,49 +1226,19 @@ public:
             break;
 
         case INS_COMP | INS_DATA_ADDRESS | INS_R1:
-            flags[ZERO] = R1 == RAM[data];
-            flags[NEGATIVE] = R1 > RAM[data];
-            if (IS_DEBUG_PRINT)
-            {
-                printf("R1 = %#x, RAM[%#x]=%#x\n", R1, data, RAM[data]);
-            }
-            break;
-
         case INS_COMP | INS_DATA_ADDRESS | INS_R2:
-            flags[ZERO] = R2 == RAM[data];
-            flags[NEGATIVE] = R2 > RAM[data];
-
-            break;
-
         case INS_COMP | INS_DATA_ADDRESS | INS_R3:
-            flags[ZERO] = R3 == RAM[data];
-
-            // printf("R3 is %d and RAM[data] is %d\n", static_cast<int>(R3), static_cast<int>(RAM[data]));
-            flags[NEGATIVE] = R3 > RAM[data];
-            break;
         case INS_COMP | INS_DATA_ADDRESS | INS_R4:
-            flags[ZERO] = R4 == RAM[data];
-            flags[NEGATIVE] = R4 > RAM[data];
+            flags[ZERO] = R[reg] == RAM[data];
+            flags[NEGATIVE] = R[reg] > RAM[data];
             break;
 
         case INS_COMP | INS_R1:
-            flags[ZERO] = R1 == data;
-            flags[NEGATIVE] = R1 > data;
-            printf("Comparing: \t %#x > %#x\n", R1, data);
-            break;
-
         case INS_COMP | INS_R2:
-            flags[ZERO] = R2 == data;
-            flags[NEGATIVE] = R2 > data;
-            break;
-
         case INS_COMP | INS_R3:
-            flags[ZERO] = R3 == data;
-            flags[NEGATIVE] = R3 > data;
-            break;
         case INS_COMP | INS_R4:
-            flags[ZERO] = R4 == data;
-            flags[NEGATIVE] = R4 > data;
+            flags[ZERO] = R[reg] == data;
+            flags[NEGATIVE] = R[reg] > data;
             break;
 
         case INS_CLEAR_ACC | INS_DATA_ADDRESS: // CLR at address
@@ -1416,7 +1281,6 @@ public:
         case INS_POP: // POP
             PC = SP + SL - 1;
             SL--;
-
             break;
 
         default:
@@ -1546,15 +1410,11 @@ int main()
         printf("(%d). %s:\n", i + 1, programs[i].c_str());
     }
 
-    // int x;
-
-    // scanf("%d", &x);
-
     cpu.loadProgram(programs[5]);
-
-    cpu.call_api((char *)"power");
-    cpu.call_api((char *)"vol_minus");
-    cpu.call_api((char *)"vol_plus");
+    cpu.call_api((char *)"POWER");
+    cpu.call_api((char *)"VOLUME[+]");
+    cpu.call_api((char *)"VOLUME[-]");
+    cpu.call_api((char *)"UP_ARROW");
 
     int i;
     cin >> i;

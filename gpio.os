@@ -7,77 +7,45 @@ dclr $vol_plus_button[4]
 
 dclr $vol_minus_button[4]
 
+dclr $down_button[4]
+dclr $ONE_button[7]
+dclr $up_button[4]
+
 define $ACTION_NEC_SEND 0x03
-
-toggle_gpio{api}:
-    load %r2 0x03
-    store %r2 $data_second
-    clr
-    add %r2 0x01
-    end
-
-init_buttons:
-    ;power
-    load %r1 0x20
-    store %r1 $power_button[0]
-    
-    load %r1 0xFD
-    store %r1 $power_button[1]
-
-    load %r1 0x56
-    store %r1 $power_button[2]
-
-    load %r1 0x43
-    store %r1 $power_button[3]
-    
-    load %r1 0x21
-    store %r1 $vol_plus_button[0]
-    
-    load %r1 0xFE
-    store %r1 $vol_plus_button[1]
-
-    load %r1 0x26
-    store %r1 $vol_plus_button[2]
-
-    load %r1 0x33
-    store %r1 $vol_plus_button[3]
-
-    load %r1 0x11
-    store %r1 $vol_minus_button[0]
-    
-    load %r1 0xed
-    store %r1 $vol_minus_button[1]
-
-    load %r1 0x22
-    store %r1 $vol_minus_button[2]
-
-    load %r1 0xfa
-    store %r1 $vol_minus_button[3]
-
-    end
+memory $up_button[0x0f,0x08,0x04,0x02]
+memory $power_button[0x9f,0xf8,0x44,0x22]
+memory $vol_plus_button[0x1f,0x38,0x3,0x1e]
+memory $vol_minus_button[0x4f,0x08,0x43,0x32]
+memory $data[0x89]
 
 nec_send:
     syscall $ACTION_NEC_SEND
     end
 
-power{api}:
+power{POWER}:
     aor %r1 $power_button
     call nec_send
     end
 
-vol_minus{api}:
+vol_minus{VOLUME[-]}:
     aor %r1 $vol_minus_button
     call nec_send
     end
 
-vol_plus{api}:
+vol_plus{VOLUME[+]}:
     aor %r1 $vol_plus_button
     call nec_send
     end
 
-_main:
-    call init_buttons
+up{UP_ARROW}:
+    aor %r1 $up_button
+    call nec_send
+    end
 
+
+_main:
+    aor %r1 $data
+    call power
     end
 
 
