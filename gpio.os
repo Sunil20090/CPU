@@ -42,7 +42,6 @@ up{UP_ARROW}:
     call nec_send
     end
 
-
 _main:
     aor %r1 $data
     call power

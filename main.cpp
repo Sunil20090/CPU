@@ -219,7 +219,6 @@ public:
 
     void loadProgram(const string &programname)
     {
-
         fstream file(programname);
         if (!file)
         {
