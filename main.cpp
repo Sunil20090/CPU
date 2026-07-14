@@ -7,22 +7,25 @@
 #include <string>
 #include <cstring>
 #include <map>
+
+
 using namespace std;
 
 #define RAM_SIZE 0xff // 1024*8 bits (1KB)
-#define STACK_CAPACITY 5
-#define META_DATA_LENGTH 6
-#define META_DATA_INDEX_META_DATA_LENGTH 0
+#define STACK_CAPACITY 20
+#define META_DATA_LENGTH 7
+#define META_DATA_INDEX_PROGRAM_ID 0
 #define META_DATA_INDEX_PROGRAMM_LENGTH 1
 #define META_DATA_INDEX_STACK_START_ADDRESS 2
 #define META_DATA_INDEX_USED_HEAP 3
 #define META_DATA_INDEX_API_START_ADDRESS 4
 #define META_DATA_INDEX_USED_MEMORY 5
-#define MAX_APIS 10
+#define META_DATA_INDEX_META_DATA_LENGTH 6
+#define MAX_APIS 30
 
 #define INS_HLT 0x10
 #define INS_JUMP 0x20
-#define INS_STORE 0x30
+#define INS_STORE 0x30  
 #define INS_LOAD 0x40
 #define INS_ADD 0x50
 #define INS_MOVE 0x60
@@ -57,7 +60,6 @@ using namespace std;
 #define SYS_SCAN 0x01   // 00000001
 
 
-
 class CPU
 {
 public:
@@ -67,7 +69,6 @@ public:
     #define R2 R[1]
     #define R3 R[2]
     #define R4 R[3]
-
 
     uint8_t AR = 0x00; // Address Register
     uint8_t AC = 0x00; // Accumulator
@@ -133,7 +134,7 @@ public:
         instructionMap["rts"] = INS_RIGHT_SHIFT;
     }
 
-    void saveProgram(uint8_t limit)
+    void saveProgram(const string &programname, uint8_t limit)
     {
 
         std::ofstream file("output.txt");
@@ -144,6 +145,7 @@ public:
             return;
         }
 
+        file << "/* file_name:" << programname << "*/\n\n" << endl;
         file << "uint16_t program[] = {\n";
         for (int address = 0; address <= limit; ++address)
         {
@@ -153,6 +155,7 @@ public:
         // printf("]");
         file << "};\n\n";
 
+        file << "/*" << endl;
         file << std::dec;
 
         file << "META DATA LENGTH      : " << RAM[META_DATA_INDEX_META_DATA_LENGTH]
@@ -173,8 +176,8 @@ public:
         file << "META USED MEMORY      : " << RAM[META_DATA_INDEX_USED_MEMORY]
              << " (" << RAM[META_DATA_INDEX_USED_MEMORY] * sizeof(uint16_t) << " bytes)\n";
 
+        file << "*/" << endl;
         file.close(); // Optional (automatically called when file goes out of scope)
-
 
         
 
@@ -282,14 +285,14 @@ public:
         }
 
         // saveProgram(0xff);
-        saveProgram(RAM[META_DATA_INDEX_USED_MEMORY]);
+        saveProgram(programname, RAM[META_DATA_INDEX_USED_MEMORY]);
 
         run();
 
         if (IS_DEBUG_PRINT)
         {
             showMemory(0x00, 0xff);
-            printf("Api length = %d\n", apiLength);
+            printf("Api Count = %d\n", apiLength);
         }
     }
 
@@ -985,28 +988,53 @@ public:
 
             if(isKeyAvailable(pair.first, memoryMap)){
                 const char * data = memoryMap[pair.first].c_str();
-                int i = 0;
+                int charIndex = 0;
                 int bufferIndex = 0;
                 int dataIndex = 0;
                 char* dataString = new char[20];
-                while(*(data + i) != '\0'){
-                    if (*(data + i) == ','){
-                        *(dataString + bufferIndex) = '\0';
-                        printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
 
-                        RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
-                        i++;
+                if (*(data + charIndex++) == '\"')
+                {
+                    
+                    while (*(data + charIndex) != '\"')
+                    {
+                        bool exceeded = isKeyAvailable(pair.first, arrayMap) ? arrayMap[pair.first] < charIndex + 1 : 1 < charIndex + 1;
+                        if (exceeded){
+                            throw runtime_error("Index out of bound of string " + pair.first);
+                            break;
+                        
+                        }
+                        printf("%d : Got the char! %c \n ", charIndex, *(data + charIndex));
+                        RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = *(data + charIndex);
                         dataIndex++;
-                        bufferIndex = 0;
+                        charIndex++;
                     }
-                    *(dataString + bufferIndex) = *(data + i);
-                    bufferIndex++;
-                    i++;
+                    RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = '\0';
+                }else {
+                    while (*(data + charIndex) != '\0')
+                    {
+
+                        if (*(data + charIndex) == ',')
+                        {
+                            *(dataString + bufferIndex) = '\0';
+                            printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
+                            RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
+
+                            charIndex++;
+                            dataIndex++;
+                            bufferIndex = 0;
+                        }
+                        *(dataString + bufferIndex) = *(data + charIndex);
+                        bufferIndex++;
+                        charIndex++;
+                    }
+
+                    *(dataString + bufferIndex) = '\0';
+                    RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
+                    printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
                 }
 
-                *(dataString + bufferIndex) = '\0';
-                RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = stoi(dataString, nullptr, 16);
-                printf("found data! memoryMap[%s] = %#x | actual %#x |  --%s-- %#x\n", pair.first.c_str(), (pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex), pair.second, dataString, stoi(dataString, nullptr, 16));
+                
             }
         }
 
@@ -1348,7 +1376,13 @@ public:
         case 0x03:
             for(int i=0; i<4; ++i){
                 printf("Sending PWM...%#x\n", RAM[R1 + i]);
+                // HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);
             }
+            
+            break;
+
+
+        case 0x06:
             
             break;
 
@@ -1362,7 +1396,7 @@ public:
         printf("\n");
         for (int address = start; address <= limit; ++address)
         {
-            printf("[%#x]:%#x\n", address, RAM[address]);
+            printf("[%#x]:%#x\t( %c )\n", address, RAM[address], (char)RAM[address]);
         }
     }
 
@@ -1398,7 +1432,7 @@ int main()
 
     CPU cpu;
 
-    const string programs[] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os", "gpio.os"};
+    const string programs[] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os", "nec.os", "oled.os"};
 
     printf("Available programs:\n");
 
@@ -1409,11 +1443,10 @@ int main()
         printf("(%d). %s:\n", i + 1, programs[i].c_str());
     }
 
-    cpu.loadProgram(programs[5]);
-    cpu.call_api((char *)"POWER");
-    cpu.call_api((char *)"VOLUME[+]");
-    cpu.call_api((char *)"VOLUME[-]");
-    cpu.call_api((char *)"UP_ARROW");
+    int x;
+    cin >> x;
+
+    cpu.loadProgram(programs[x - 1]);
 
     int i;
     cin >> i;

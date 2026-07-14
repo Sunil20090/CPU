@@ -1,9 +1,15 @@
 ### Kernal
 
-```mermaid
-flowchart TD
+|Port (2-bit)|ACTION TYPE (2-bit)|
+|:--:|:--:|
+|GPIOA|INIT|
+|GPIOB|INPUT|
+|GPIOC|OUTPUT|
+|GPIOD|ANALOG|
 
-     A[Load Program] --> B[RAM]
-     B --> C[Identify APIs\nNames\nMethod Pointer\nArguement]
-```
-
+|ACTION TYPE|
+|:--:|
+|INIT|
+|OUTPUT|
+|INPUT|
+|NOP|
