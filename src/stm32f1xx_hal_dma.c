@@ -13,7 +13,7 @@
                         ##### How to use this driver #####
   ==============================================================================
   [..]
-   (#) Enable and configure the peripheral to be connected to the DMA Channel
+   (#) Enable asnd configure the peripheral to be connected to the DMA Channel
        (except for internal SRAM / FLASH memories: no initialization is 
        necessary). Please refer to the Reference manual for connection between peripherals
        and DMA requests.
