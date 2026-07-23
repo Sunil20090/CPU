@@ -101,8 +101,6 @@ typedef struct Node
     int childCount;
 } Node;
 
-
-
 void addChild(Node *parent, Node *child)
 {
     parent->children[parent->childCount++] = child;

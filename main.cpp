@@ -770,15 +770,6 @@ public:
                     middleData = buffer.substr(1, 3);
                     buffer.clear();
                 }
-                // else if (buffer.substr(0, 1) == "[")
-                // {
-                //     int indexOf = buffer.find("]");
-                //     if (indexOf == -1)
-                //     {
-                //         throw;
-                //     }
-                //     currentAddress = buffer.substr(3, indexOf - 1);
-                // }
                 else if (buffer.substr(0, 1) == "\'" && buffer.substr(2, 3) == "\'")
                 {
                     int value = static_cast<int>(buffer[1]);
@@ -993,8 +984,9 @@ public:
                 int dataIndex = 0;
                 char* dataString = new char[20];
 
-                if (*(data + charIndex++) == '\"')
+                if (*(data + charIndex) == '\"')
                 {
+                    charIndex++;
                     
                     while (*(data + charIndex) != '\"')
                     {
@@ -1002,7 +994,6 @@ public:
                         if (exceeded){
                             throw runtime_error("Index out of bound of string " + pair.first);
                             break;
-                        
                         }
                         printf("%d : Got the char! %c \n ", charIndex, *(data + charIndex));
                         RAM[(pair.second + binaryIndex + STACK_CAPACITY + 1 + dataIndex)] = *(data + charIndex);

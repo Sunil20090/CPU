@@ -1,0 +1,15 @@
+\documentclass{article}
+\usepackage{circuitikz}
+
+\begin{document}
+
+\begin{circuitikz}
+\draw
+(0,0)
+to[battery] (0,3)
+to[R=220<\ohm>] (3,3)
+to[led] (3,0)
+-- (0,0);
+\end{circuitikz}
+
+\end{document}
