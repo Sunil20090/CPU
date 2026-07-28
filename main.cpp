@@ -7,7 +7,7 @@
 #include <string>
 #include <cstring>
 #include <map>
-
+#include "syscall.h"
 
 using namespace std;
 
@@ -570,6 +570,9 @@ public:
                             if (IS_DEBUG_PRINT)
                             {
                                 printf("File name found %s\n", buffer.c_str());
+
+                                
+
                             }
                             break;
                         }
@@ -1373,8 +1376,9 @@ public:
             break;
 
 
-        case 0x06:
-            
+        case 0x09:
+
+        
             break;
 
         default:
@@ -1423,7 +1427,7 @@ int main()
 
     CPU cpu;
 
-    const string programs[] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os", "nec.os", "oled.os"};
+    const string programs[] = {"prog.os", "calc.os", "image.os", "condition.os", "mult.os", "nec.os", "oled.os", "gpio.os"};
 
     printf("Available programs:\n");
 

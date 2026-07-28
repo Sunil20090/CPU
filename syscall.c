@@ -1,6 +1,8 @@
- 
+    
+#include "syscall.h"
 #include <stdint.h>
 #include <stdio.h>
+
 #include <stm32f1xx_hal.h>
 
 #define TOTAL_BIT_LENGTH 32
@@ -47,14 +49,13 @@
         (cmd) = ((cmd) & ~0x0Fu) | (((uint32_t)(value)) & 0x0F); \
     } while (0)
 
-
-/*
-31      29 28    25 24    21 20    17 16    13 12     9 8      5 4      0
-+----------+--------+--------+--------+--------+--------+--------+---------+
-| Action   | Periph | Port   | Pin    | Arg1   | Arg2   | Arg3   |  Arg4   |
-| 3 bits   | 4 bits | 4 bits | 4 bits | 4 bits | 4 bits | 4 bits | 5 bits  |
-+----------+--------+--------+--------+--------+--------+--------+---------+
-*/
+    /*
+    31      28 27    24 23    20 19    16 15    12 11     8 7      4 3      0
+    +----------+--------+--------+--------+--------+--------+--------+--------+
+    | Action   | Periph | Port   | Pin    | Arg1   | Arg2   | Arg3   | Arg4   |
+    | 4 bits   | 4 bits | 4 bits | 4 bits | 4 bits | 4 bits | 4 bits | 4 bits |
+    +----------+--------+--------+--------+--------+--------+--------+--------+
+    */
 
 #define PIN_MAP(x) (0x00000001u << x)
 
@@ -74,6 +75,7 @@ FunctionGeneric readActionTable[] = {
     gpio_read
 };
 
+I2C_HandleTypeDef hi2c1;
 
 enum DIRECTION
 {
@@ -182,6 +184,29 @@ void enableGPIOClock(uint8_t port)
     }
 }
 
+// void i2c_init(uint32_t action)
+// {
+//     uint8_t bus = GET_ARG_ONE(action);
+
+//     HAL_I2C_Init(i2cTable[bus]);
+// }
+
+// void i2c_write(uint32_t action)
+// {
+//     uint8_t bus = GET_ARG_ONE(action);
+
+//     uint8_t address = GET_ARG_TWO(action);
+
+//     uint8_t length = GET_ARG_THREE(action);
+//     uint8_t txData = GET_ARG_THREE(action);
+
+//     HAL_I2C_Master_Transmit(
+//         i2cTable[bus],
+//         address << 1,
+//         txBuffer,
+//         length,
+//         HAL_MAX_DELAY);
+// }
 
 void gpio_init(action){
     uint8_t portIndex = GET_PORT_INDEX(action);
@@ -237,7 +262,7 @@ void gpio_read(uint32_t action)
 }
 
 
-void systemCall()
+void system()
 {
     switch(GET_ACTION_TYPE(action)){
 
@@ -263,7 +288,6 @@ void systemCall()
 
 int main()
 {
-
 
     return 0;
 }
