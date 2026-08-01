@@ -12,8 +12,8 @@
 using namespace std;
 
 #define RAM_SIZE 0xff // 1024*8 bits (1KB)
-#define STACK_CAPACITY 20
-#define META_DATA_LENGTH 7
+#define STACK_CAPACITY 26
+#define META_DATA_LENGTH 8
 #define META_DATA_INDEX_PROGRAM_ID 0
 #define META_DATA_INDEX_PROGRAMM_LENGTH 1
 #define META_DATA_INDEX_STACK_START_ADDRESS 2
@@ -21,6 +21,9 @@ using namespace std;
 #define META_DATA_INDEX_API_START_ADDRESS 4
 #define META_DATA_INDEX_USED_MEMORY 5
 #define META_DATA_INDEX_META_DATA_LENGTH 6
+#define META_DATA_INDEX_INTTERUPT_START_ADDRESS 7
+
+
 #define MAX_APIS 30
 
 #define INS_HLT 0x10
@@ -48,6 +51,7 @@ using namespace std;
 #define INS_AND 0x98
 #define INS_LEFT_SHIFT 0xa8
 #define INS_RIGHT_SHIFT 0xb8
+#define INS_STORE_TO_ADDRESS 0xc8
 
 #define INS_DATA_ADDRESS 0x04
 #define INS_R1 0x00
@@ -78,7 +82,6 @@ public:
     uint16_t SL = 0x00; // STACK_LENGTH
     uint16_t API_POINTER = 0x00;
     uint16_t API_STACK_LENGTH = 0x00;
-
     uint8_t IS_DEBUG_PRINT = 1;
 
     map<string, uint16_t> instructionMap;
@@ -111,6 +114,7 @@ public:
         instructionMap["store"] = INS_STORE;
         instructionMap["load"] = INS_LOAD;
         instructionMap["lfad"] = INS_LOAD_OF_ADDRESS;
+        instructionMap["stad"] = INS_STORE_TO_ADDRESS;
         instructionMap["jump"] = INS_JUMP;
         instructionMap["jupz"] = INS_JUMP_IF_ZERO;
         instructionMap["jupn"] = INS_JUMP_IF_LESS;
@@ -1039,8 +1043,6 @@ public:
             register_api((char *)(pair.first.c_str()), pair.second, binaryIndex + variable_counter + STACK_CAPACITY + 1);
         }
 
-        
-
         int programSize = binaryIndex + variable_counter + STACK_CAPACITY + API_STACK_LENGTH;
 
         *(binaries + META_DATA_INDEX_META_DATA_LENGTH) = META_DATA_LENGTH;
@@ -1171,6 +1173,13 @@ public:
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R3:
         case INS_LOAD_OF_ADDRESS | INS_DATA_ADDRESS | INS_R4:
             R[reg] = RAM[RAM[data]];
+            break;
+            
+        case INS_STORE_TO_ADDRESS | INS_DATA_ADDRESS | INS_R1:
+        case INS_STORE_TO_ADDRESS | INS_DATA_ADDRESS | INS_R2:
+        case INS_STORE_TO_ADDRESS | INS_DATA_ADDRESS | INS_R3:
+        case INS_STORE_TO_ADDRESS | INS_DATA_ADDRESS | INS_R4:
+            RAM[RAM[data]] = R[reg];
             break;
 
         case INS_JUMP | INS_DATA_ADDRESS:
