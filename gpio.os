@@ -1,92 +1,107 @@
-define $SYSCALL_COMMAND 0x01
+define $SYSCALL_RUN_COMMAND 0x03
+define $SYSCALL_DELAY_1_SEC 0x06
+define $SYSCALL_RUN_COMMAND_WITH_RETURN 0x05
+define $SYSCALL_RUN_COMMAND_DATA_CAPTURE 0x04
 
-dclr $command_buffer[4]
+dclr $command_gpio_init[4]
+dclr $command_gpio_write_high[4]
+dclr $command_gpio_write_low[4]
 
-dclr $command_toggle[4]
-dclr $command_port_c[4]
-dclr $command_name[4]
-dclr $command_alphabet[4]
+dclr $command_uart_init[4]
+dclr $command_uart_recieve[4]
+dclr $command_uart_transmit[4]
 
-memory $command_buffer["SON"]
-memory $command_toggle["TEP"]
-memory $command_port_c["por"]
-memory $command_name["nam"]
+dclr $data_to_transmit[10]
 
-dclr $source_address
-dclr $destination_address
-dclr $copy_loop_counter
+memory $data_to_transmit["_Hello_OS"]
 
 
-print_a:
-    aor %r1 $command_alphabet
-    syscall $SYSCALL_COMMAND
+memory $command_gpio_init[0x10,0x3D,0x10,0x00]
+memory $command_gpio_write_high[0x11, 0x3D, 0x00, 0x00]
+memory $command_gpio_write_low[0x11, 0x3D,0x10,0x00]
+
+memory $command_uart_init[0x20, 0x00, 0x20, 0x00]
+memory $command_uart_recieve[0x22, 0x00, 0x20, 0x00]
+memory $command_uart_transmit[0x21, 0x00, 0x20, 0x00]
+
+dclr $blink_counter
+memory $blink_counter[0x03]
+
+gpio_init:
+    aor $command_gpio_init
+    syscall $SYSCALL_RUN_COMMAND
+    end
+
+gpio_write_high:
+    aor $command_gpio_write_high
+    syscall $SYSCALL_RUN_COMMAND
+    end
+
+gpio_write_low:
+    aor $command_gpio_write_low
+    syscall $SYSCALL_RUN_COMMAND
+    end
+
+fun_uart_init:
+    aor $command_uart_init
+    syscall $SYSCALL_RUN_COMMAND
+    end
+
+fun_uart_recieve:
+    aor $command_uart_recieve
+    syscall $SYSCALL_RUN_COMMAND
     end
 
 
-interupt_handler:
-    comp %r1 0x01
-    calz print_a
-
-    end
-
-trigger_command:
-    aor %r1 $command_buffer
-    syscall $SYSCALL_COMMAND
-    end
-
-reset_all:
-    clr $copy_loop_counter
-    clr $source_address
-    clr $destination_address
-    load %r1 0x00
+delay_loop_100ms:
+    dec %r2
+    comp %r2 0x00
+    syscall $SYSCALL_DELAY_1_SEC
+    caln delay_loop_100ms
     load %r2 0x00
-    load %r3 0x00
-    load %r4 0x00
     end
 
-copy_data:
-    lfad %r1 $source_address
-    stad %r1 $destination_address
-    inc $source_address
-    inc $destination_address
-    inc $copy_loop_counter
-    comp %r2 $copy_loop_counter
-    caln copy_data
-    call reset_all
+delay_1s:
+    load %r2 0x01
+    call delay_loop_100ms
     end
 
-
-store_toggle_command:
-    aor %r1 $command_port_c
-    store %r1 $source_address
-    aor %r1 $command_buffer
-    store %r1 $destination_address
-    load %r2 0x04
-    call copy_data
+blink_loop:
+    call gpio_write_low
+    call delay_1s
+    call gpio_write_high
+    call delay_1s
+    
+    dec $blink_counter
+    load %r2 $blink_counter
+    comp %r2 0x00
+    caln blink_loop
+    load %r2 0x00
     end
-
-
-store_name_command:
-    aor %r1 $command_name
-    store %r1 $source_address
-    aor %r1 $command_buffer
-    store %r1 $destination_address
+ 
+fun_uart_transmit:
     load %r2 0x08
-    call copy_data
+    store %r2 $data_to_transmit
+
+    aor %r1 $command_uart_transmit
+    syscall $SYSCALL_RUN_COMMAND
     end
 
-gpio_toggle_pin{_toggle}:
-    call store_toggle_command
-    call trigger_command
-    end
-
-
-name_pin{name_game}:
-    call store_name_command
-    call trigger_command
+ fun_init_io:
+    call gpio_init
+    call fun_uart_init
     end
 
 _main:
-    call gpio_toggle_pin
-    call name_pin
+    call fun_init_io
+
+    call gpio_write_high
+    call fun_uart_recieve
+
+    call gpio_write_low
+    call fun_uart_transmit
+    
+
+
+    call gpio_write_high
     end

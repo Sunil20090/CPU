@@ -12,7 +12,7 @@
 using namespace std;
 
 #define RAM_SIZE 0xff // 1024*8 bits (1KB)
-#define STACK_CAPACITY 26
+#define STACK_CAPACITY 50
 #define META_DATA_LENGTH 8
 #define META_DATA_INDEX_PROGRAM_ID 0
 #define META_DATA_INDEX_PROGRAMM_LENGTH 1
@@ -1330,6 +1330,8 @@ public:
                 static_cast<int>(IR & 0x00ff),
                 static_cast<int>(R1));
         }
+
+        return;
 
         switch (IR & 0x00ff)
         {
